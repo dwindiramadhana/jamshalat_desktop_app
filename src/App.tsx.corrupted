@@ -1,0 +1,712 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import SettingsModal from './components/SettingsModal';
+import ErrorBoundary from './components/ErrorBoundary';
+import { fetchLocations, fetchPrayerTimes } from './api';
+import type { LocationData, PrayerTime } from './types';
+import type { Settings, UnsplashImage } from './types/settings';
+import { DEFAULT_SETTINGS } from './types/settings';
+import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+
+// Define the full settings type that includes all possible settings
+type AppSettings = Settings & {
+  showNextPrayerLabel: boolean;
+};
+
+// Default values for settings
+const DEFAULT_APP_SETTINGS: AppSettings = {
+  ...DEFAULT_SETTINGS,
+  showNextPrayerLabel: true,
+};
+
+interface FormattedLocation extends LocationData {
+  name: string;
+  region?: string;
+  country?: string;
+}
+
+interface FormattedPrayerTime extends PrayerTime {
+  isNext: boolean;
+  timeInMinutes: number;
+}
+
+function App() {
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('appSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Ensure all required fields are present
+        return {
+          ...DEFAULT_APP_SETTINGS,
+          ...parsed,
+          background: {
+            ...DEFAULT_APP_SETTINGS.background,
+            ...parsed.background,
+          },
+        };
+      } catch (e) {
+        console.error('Failed to parse saved settings', e);
+        return DEFAULT_APP_SETTINGS;
+      }
+    }
+    return DEFAULT_APP_SETTINGS;
+  });
+  
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [currentImage, setCurrentImage] = useState<UnsplashImage | null>(null);
+  const backgroundTimer = useRef<NodeJS.Timeout | null>(null);
+  const [locations, setLocations] = useState<FormattedLocation[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<FormattedLocation | null>(null);
+  const [prayerTimes, setPrayerTimes] = useState<FormattedPrayerTime[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-advance prayer highlight and fetch tomorrow's schedule when needed
+  useEffect(() => {
+    if (prayerTimes.length === 0 || !selectedLocation) return;
+
+    const currentHours = currentTime.getHours();
+    const currentMinutes = currentTime.getMinutes();
+    const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+    // Find which prayer should be highlighted now
+    let nextPrayerIndex = -1;
+    let allPrayersPassed = true;
+
+    for (let i = 0; i < prayerTimes.length; i++) {
+      const prayer = prayerTimes[i];
+      if (prayer.timeInMinutes > currentTotalMinutes) {
+        nextPrayerIndex = i;
+        allPrayersPassed = false;
+        break;
+      }
+    }
+
+    // Check if the current highlight is correct
+    const currentHighlightIndex = prayerTimes.findIndex(p => p.isNext);
+    const shouldHighlightIndex = allPrayersPassed ? 0 : nextPrayerIndex; // If all passed, highlight first prayer (for tomorrow)
+
+    // If highlight needs to change
+    if (currentHighlightIndex !== shouldHighlightIndex) {
+      const updatedTimes = prayerTimes.map((prayer, index) => ({
+        ...prayer,
+        isNext: index === shouldHighlightIndex
+      }));
+      setPrayerTimes(updatedTimes);
+
+      // If all prayers have passed (Isha is the last), fetch tomorrow's schedule
+      if (allPrayersPassed && currentHighlightIndex !== -1) {
+        // Only fetch if we just transitioned from having a highlight to all prayers passed
+        fetchTomorrowSchedule();
+      }
+    }
+  }, [currentTime, prayerTimes, selectedLocation]);
+
+  // Function to fetch tomorrow's prayer schedule
+  const fetchTomorrowSchedule = async () => {
+    if (!selectedLocation) return;
+
+    try {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const year = tomorrow.getFullYear();
+      const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const day = String(tomorrow.getDate()).padStart(2, '0');
+      
+      const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
+      
+      if (!prayerData.status || !prayerData.data?.jadwal) {
+        throw new Error('Invalid prayer times data received');
+      }
+      
+      const { jadwal } = prayerData.data;
+      
+      const prayerTimesList = [
+        { name: 'Subuh', time: jadwal.subuh },
+        { name: 'Terbit', time: jadwal.terbit },
+        { name: 'Dhuha', time: jadwal.dhuha },
+        { name: 'Dzuhur', time: jadwal.dzuhur },
+        { name: 'Ashar', time: jadwal.ashar },
+        { name: 'Maghrib', time: jadwal.maghrib },
+        { name: 'Isya', time: jadwal.isya },
+      ];
+      
+      const formattedTimes = prayerTimesList.map((prayer, index) => {
+        const [hours, minutes] = prayer.time.split(':').map(Number);
+        const prayerTotalMinutes = hours * 60 + minutes;
+        
+        return {
+          ...prayer,
+          isNext: index === 0, // Highlight first prayer (Subuh) for tomorrow
+          timeInMinutes: prayerTotalMinutes,
+        };
+      });
+      
+      setPrayerTimes(formattedTimes);
+    } catch (err) {
+      console.error('Error loading tomorrow\'s prayer times:', err);
+    }
+  };
+
+  // Save settings to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('appSettings', JSON.stringify(settings));
+    
+    // If there are images available
+    if (settings.background.images.length > 0) {
+      // Ensure currentImageIndex is within bounds
+      const safeIndex = Math.min(settings.background.currentImageIndex, settings.background.images.length - 1);
+      
+      // Update current image
+      setCurrentImage(settings.background.images[safeIndex]);
+      
+      // Start rotation if needed
+      if (settings.background.images.length > 1) {
+        startBackgroundRotation(settings.background.images, settings.background.rotationInterval);
+      } else {
+        clearBackgroundRotation();
+      }
+    } else {
+      setCurrentImage(null);
+      clearBackgroundRotation();
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      clearBackgroundRotation();
+    };
+  }, [settings]);
+
+  // Background rotation logic
+  const startBackgroundRotation = (images: UnsplashImage[], intervalMinutes: number) => {
+    // Clear any existing timer
+    clearBackgroundRotation();
+    
+    const intervalMs = intervalMinutes * 60 * 1000;
+    
+    backgroundTimer.current = setInterval(() => {
+      // Update the current image index in settings
+      const newIndex = (settings.background.currentImageIndex + 1) % images.length;
+      
+      // Update the current image
+      setCurrentImage(images[newIndex]);
+      
+      // Update the settings with the new index
+      setSettings(prev => ({
+        ...prev,
+        background: {
+          ...prev.background,
+          currentImageIndex: newIndex
+        }
+      }));
+    }, intervalMs);
+  };
+  
+  const clearBackgroundRotation = () => {
+    if (backgroundTimer.current) {
+      clearInterval(backgroundTimer.current);
+      backgroundTimer.current = null;
+    }
+  };
+
+  // Location conversion for SettingsModal is now handled in the JSX
+
+  // Load locations on mount
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchLocations();
+        // Format locations to include both name and lokasi
+        const formattedLocations = data.map(loc => ({
+          ...loc,
+          name: loc.lokasi // Use lokasi as the display name
+        }));
+        setLocations(formattedLocations);
+        
+        // Load last selected location from localStorage
+        const savedLocationId = localStorage.getItem('selectedLocationId');
+        if (savedLocationId) {
+          const savedLocation = formattedLocations.find(loc => loc.id === savedLocationId);
+          if (savedLocation) {
+            setSelectedLocation(savedLocation);
+          }
+        }
+      } catch (err) {
+        setError('Gagal memuat daftar lokasi. Silakan coba lagi.');
+        console.error('Error loading locations:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadLocations();
+  }, []);
+
+  // Load prayer times function
+  const loadPrayerTimes = useCallback(async () => {
+    if (!selectedLocation) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      
+      const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
+      
+      if (!prayerData.status || !prayerData.data?.jadwal) {
+        throw new Error('Invalid prayer times data received');
+      }
+      
+      const { jadwal } = prayerData.data;
+      
+      // Format prayer times with next prayer highlighting
+      const currentTime = new Date();
+      const currentHours = currentTime.getHours();
+      const currentMinutes = currentTime.getMinutes();
+      const currentTotalMinutes = currentHours * 60 + currentMinutes;
+      
+      const prayerTimesList = [
+        { name: 'Subuh', time: jadwal.subuh },
+        { name: 'Terbit', time: jadwal.terbit },
+        { name: 'Dhuha', time: jadwal.dhuha },
+        { name: 'Dzuhur', time: jadwal.dzuhur },
+        { name: 'Ashar', time: jadwal.ashar },
+        { name: 'Maghrib', time: jadwal.maghrib },
+        { name: 'Isya', time: jadwal.isya },
+      ];
+      
+      // Find the next prayer time
+      let nextPrayerIndex = -1;
+      let earliestNextDayIndex = -1;
+      
+      const formattedTimes = prayerTimesList.map((prayer, index) => {
+        const [hours, minutes] = prayer.time.split(':').map(Number);
+        const prayerTotalMinutes = hours * 60 + minutes;
+        
+        // If this is the first prayer that hasn't happened yet today
+        if (prayerTotalMinutes > currentTotalMinutes && nextPrayerIndex === -1) {
+          nextPrayerIndex = index;
+        }
+        
+        // Track the earliest prayer time for next day
+        if (earliestNextDayIndex === -1 || 
+            prayerTotalMinutes < prayerTimesList[earliestNextDayIndex].time.split(':').map(Number).reduce((h, m) => h * 60 + m, 0)) {
+          earliestNextDayIndex = index;
+        }
+        
+        return {
+          ...prayer,
+          isNext: false, // Will be set after we know all prayer times
+          timeInMinutes: prayerTotalMinutes,
+        };
+      });
+      
+      // If all prayers for today have passed, highlight the first prayer of the next day
+      const nextIndex = nextPrayerIndex !== -1 ? nextPrayerIndex : earliestNextDayIndex;
+      if (nextIndex !== -1) {
+        formattedTimes[nextIndex].isNext = true;
+      }
+      
+      setPrayerTimes(formattedTimes);
+      
+      // Save selected location to localStorage
+      localStorage.setItem('selectedLocationId', selectedLocation.id);
+    } catch (err) {
+      setError('Gagal memuat jadwal shalat. Silakan coba lagi.');
+      console.error('Error loading prayer times:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLocation]);
+
+  // Load prayer times when location changes
+  useEffect(() => {
+    if (!selectedLocation) return;
+    loadPrayerTimes();
+  }, [selectedLocation, loadPrayerTimes]);
+
+  // Handle settings save
+  const handleSaveSettings = useCallback((newSettings: AppSettings) => {
+    setSettings(prevSettings => ({
+      ...prevSettings,
+      ...newSettings,
+      // Ensure background settings are properly merged
+      background: {
+        ...prevSettings.background,
+        ...newSettings.background,
+      },
+    }));
+  }, []);
+
+  // Handle location change from settings
+  const handleLocationChange = (locationId: string) => {
+    const location = locations.find(loc => loc.id === locationId);
+    if (location) {
+      setSelectedLocation(location);
+    }
+  };
+
+  // Get theme color classes
+  const getThemeColorClasses = (themeColor: string = 'indigo') => {
+    const colorMap: Record<string, { bg: string; text: string; hover: string }> = {
+      slate: { bg: 'bg-slate-600', text: 'text-slate-700', hover: 'hover:bg-slate-50' },
+      gray: { bg: 'bg-gray-600', text: 'text-gray-700', hover: 'hover:bg-gray-50' },
+      zinc: { bg: 'bg-zinc-600', text: 'text-zinc-700', hover: 'hover:bg-zinc-50' },
+      neutral: { bg: 'bg-neutral-600', text: 'text-neutral-700', hover: 'hover:bg-neutral-50' },
+      stone: { bg: 'bg-stone-600', text: 'text-stone-700', hover: 'hover:bg-stone-50' },
+      red: { bg: 'bg-red-600', text: 'text-red-700', hover: 'hover:bg-red-50' },
+      orange: { bg: 'bg-orange-600', text: 'text-orange-700', hover: 'hover:bg-orange-50' },
+      amber: { bg: 'bg-amber-600', text: 'text-amber-700', hover: 'hover:bg-amber-50' },
+      yellow: { bg: 'bg-yellow-600', text: 'text-yellow-700', hover: 'hover:bg-yellow-50' },
+      lime: { bg: 'bg-lime-600', text: 'text-lime-700', hover: 'hover:bg-lime-50' },
+      green: { bg: 'bg-green-600', text: 'text-green-700', hover: 'hover:bg-green-50' },
+      emerald: { bg: 'bg-emerald-600', text: 'text-emerald-700', hover: 'hover:bg-emerald-50' },
+      teal: { bg: 'bg-teal-600', text: 'text-teal-700', hover: 'hover:bg-teal-50' },
+      cyan: { bg: 'bg-cyan-600', text: 'text-cyan-700', hover: 'hover:bg-cyan-50' },
+      sky: { bg: 'bg-sky-600', text: 'text-sky-700', hover: 'hover:bg-sky-50' },
+      blue: { bg: 'bg-blue-600', text: 'text-blue-700', hover: 'hover:bg-blue-50' },
+      indigo: { bg: 'bg-indigo-600', text: 'text-indigo-700', hover: 'hover:bg-indigo-50' },
+      violet: { bg: 'bg-violet-600', text: 'text-violet-700', hover: 'hover:bg-violet-50' },
+      purple: { bg: 'bg-purple-600', text: 'text-purple-700', hover: 'hover:bg-purple-50' },
+      fuchsia: { bg: 'bg-fuchsia-600', text: 'text-fuchsia-700', hover: 'hover:bg-fuchsia-50' },
+      pink: { bg: 'bg-pink-600', text: 'text-pink-700', hover: 'hover:bg-pink-50' },
+      rose: { bg: 'bg-rose-600', text: 'text-rose-700', hover: 'hover:bg-rose-50' },
+    };
+    return colorMap[themeColor] || colorMap.indigo;
+  };
+
+  const themeColors = getThemeColorClasses(settings.themeColor);
+  const isDarkMode = settings.darkMode;
+
+  return (
+    <>
+      <div className={`min-h-screen relative ${
+        isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
+      }`}>
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: settings.background.type === 'auto' && currentImage
+            ? `url(${currentImage.url})`
+            : settings.background.type === 'static' && settings.background.staticImage
+            ? `url(${settings.background.staticImage})`
+            : 'none'
+        }}
+      />
+      
+      {/* Overlay */}
+      <div className={`absolute inset-0 ${
+        isDarkMode ? 'bg-black bg-opacity-60' : 'bg-black bg-opacity-40'
+      }`} />
+      
+      {/* Settings Button */}
+      <button
+        onClick={() => setIsSettingsOpen(true)}
+        className={`fixed top-4 right-4 p-2 rounded-full shadow-lg z-10 transition-all backdrop-blur-sm ${
+          isDarkMode 
+            ? 'bg-gray-800 bg-opacity-75 hover:bg-gray-700/90 text-gray-200' 
+            : 'bg-white bg-opacity-75 hover:bg-white/90 text-indigo-600'
+        }`}
+        title="Pengaturan"
+      >
+        <Cog6ToothIcon className="h-6 w-6" />
+      </button>
+      
+      {/* Main Content */}
+      <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
+        <div className="w-full max-w-md">
+          {loading ? (
+            <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
+              isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+            }`}>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+              <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>Memuat jadwal shalat...</p>
+            </div>
+          ) : error ? (
+            <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
+              isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+            }`}>
+              <p className="text-red-600 mb-4">{error}</p>
+              <button
+                onClick={() => loadPrayerTimes()}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          ) : (
+            <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-sm ${
+              isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+            }`}>
+              {selectedLocation && (
+                <>
+                  {/* Location and Date */}
+                  <div className="text-center mb-6">
+                    <h1 className={`text-2xl font-bold mb-2 ${
+                      isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                    }`}>
+                      {selectedLocation.name}
+                    </h1>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                    }`}>
+                      {new Date().toLocaleDateString('id-ID', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                    <div className="mt-2">
+                      <span className={`text-lg font-medium ${
+                        isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                      }`}>
+                        {(() => {
+                          const currentTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                          const allPrayersPassed = prayerTimes.every(prayer => {
+                            return prayer.timeInMinutes <= currentTotalMinutes;
+                          });
+                          return allPrayersPassed ? 'Jadwal Besok:' : 'Jadwal hari ini:';
+                        })()} 
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Prayer Times List */}
+                  <div className="space-y-3">
+                    {prayerTimes
+                      .filter(prayer => {
+                        // Always show all prayers except Terbit and Dhuha
+                        if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
+                        // Only show Terbit if enabled in settings
+                        if (prayer.name === 'Terbit') return settings.showTerbit;
+                        // Only show Dhuha if enabled in settings
+                        if (prayer.name === 'Dhuha') return settings.showDhuha;
+                        return true;
+                      })
+                      .map((prayer) => (
+                        <div 
+                          key={prayer.name}
+                          className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${
+                            prayer.isNext 
+                              ? `${themeColors.bg} text-white` 
+                              : isDarkMode
+                              ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
+                              : 'bg-white/50 hover:bg-white/70 text-gray-800'
+                          } backdrop-blur-sm`}
+                        >
+                          <div className="flex items-center">
+                            <span className={`font-medium ${
+                              prayer.isNext 
+                                ? 'text-white' 
+                                : isDarkMode 
+                                ? 'text-gray-100' 
+                                : 'text-gray-800'
+                            }`}>
+                              {prayer.name}
+                            </span>
+                          </div>
+                          <span className={`font-semibold ${
+                            prayer.isNext 
+                              ? 'text-white' 
+                              : isDarkMode
+                              ? 'text-gray-200'
+                              : themeColors.text
+                          }`}>
+                            {prayer.time}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+            
+            {/* Date and Time Display */}
+            <div className="mb-6 p-4 bg-white/30 rounded-xl">
+              <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="text-5xl font-bold text-indigo-700">
+                  {currentTime.toLocaleTimeString('id-ID', { 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit', 
+                    hour12: false,
+                    hourCycle: 'h23'
+                  }).replace(/\./g, ':')}
+                </div>
+                <div className="text-center sm:text-right">
+                  <div className="text-indigo-900 font-medium">
+                    {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                  <div className="text-indigo-700/90 text-base font-medium">
+                    {new Intl.DateTimeFormat('id-u-ca-islamic', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      calendar: 'islamic-umalqura',
+                      numberingSystem: 'latn'
+                    }).format(new Date())} H
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Removed Prayer Times Toggle Settings */}
+            {/* Prayer Times List */}
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-red-600">
+                <p>Error: {error}</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
+                >
+                  Coba Lagi
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {selectedLocation && (
+                  <>
+                    {/* Location and Schedule Label Row */}
+                    <div className="px-3 flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg transition-colors bg-white/50 hover:bg-white/70 backdrop-blur-sm">
+                      <div className="flex items-center">
+                        <span className="font-medium text-indigo-700">{selectedLocation.name}</span>
+                      </div>
+                      <span className="font-semibold text-sm text-indigo-900">
+                        {(() => {
+                          // Check if we're showing tomorrow's schedule (when all today's prayers have passed)
+                          const currentTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                          const allPrayersPassed = prayerTimes.every(prayer => {
+                            return prayer.timeInMinutes <= currentTotalMinutes;
+                          });
+                          return allPrayersPassed ? 'Jadwal Besok:' : 'Jadwal hari ini:';
+                        })()} 
+                      </span>
+                    </div>
+                    
+                    {/* Prayer Times List */}
+                    <div className="space-y-3">
+                      {prayerTimes
+                        .filter(prayer => {
+                          // Always show all prayers except Terbit and Dhuha
+                          if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
+                          // Only show Terbit if enabled in settings
+                          if (prayer.name === 'Terbit') return settings.showTerbit;
+                          // Only show Dhuha if enabled in settings
+                          if (prayer.name === 'Dhuha') return settings.showDhuha;
+                          return true;
+                        })
+                        .map((prayer) => (
+                          <div 
+                            key={prayer.name}
+                            className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${
+                              prayer.isNext 
+                                ? `${themeColors.bg} text-white` 
+                                : isDarkMode
+                                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
+                                : 'bg-white/50 hover:bg-white/70 text-gray-800'
+                            } backdrop-blur-sm`}
+                          >
+                            <div className="flex items-center">
+                              <span className={`font-medium ${
+                                prayer.isNext 
+                                  ? 'text-white' 
+                                  : isDarkMode
+                                  ? 'text-gray-100'
+                                  : 'text-gray-800'
+                              }`}>
+                                {prayer.name}
+                              </span>
+                            </div>
+                            <span className={`font-semibold ${
+                              prayer.isNext 
+                                ? 'text-white' 
+                                : isDarkMode
+                                ? 'text-gray-200'
+                                : themeColors.text
+                            }`}>
+                              {prayer.time}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Settings Modal */}
+      <ErrorBoundary>
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          settings={settings}
+          onSave={handleSaveSettings}
+          locations={locations.map(loc => ({
+            id: loc.id,
+            name: loc.name,
+            lokasi: loc.name,
+            koordinat: {
+              lat: '0',
+              lon: '0'
+            }
+          }))}
+          selectedLocationId={selectedLocation?.id || null}
+          onLocationChange={handleLocationChange}
+        />
+      </ErrorBoundary>
+
+      {/* Photo Credit - Only show for Unsplash images */}
+      {currentImage?.author && settings.background.type === 'auto' && (
+        <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20">
+          <span>Photo by </span>
+          <a 
+            href={currentImage.authorUrl || `https://unsplash.com/@${currentImage.authorUsername}?utm_source=JamShalatApp&utm_medium=referral`}
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-300 hover:text-blue-100 mx-1"
+          >
+            {currentImage.author}
+          </a>
+          <span> on </span>
+          <a 
+            href="https://unsplash.com?utm_source=JamShalatApp&utm_medium=referral" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-300 hover:text-blue-100 ml-1"
+          >
+            Unsplash
+          </a>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default App;

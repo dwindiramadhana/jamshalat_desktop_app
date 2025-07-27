@@ -1,0 +1,109 @@
+name: 'Build and Release Jam Shalat'
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest' # for Intel based macs.
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04' # for Tauri v1 you could use ubuntu-20.04.
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up the linux and windows runners.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Sync node version and setup cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm' # Set this to npm, yarn or pnpm.
+
+      - name: Install frontend dependencies
+        # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
+        run: npm install # change this to npm or pnpm depending on which one you use.
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
+        with:
+          tagName: ${{ github.event.release.tag_name || format('v{0}', github.run_number) }} # This only works if your workflow triggers on new releases.
+          releaseName: 'Jam Shalat v__VERSION__' # tauri-action replaces \_\_VERSION\_\_ with the app version.
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # Combine all artifacts into a single release
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    needs: build
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Create Release Notes
+        run: |
+          echo "# Jam Shalat v${{ github.event.release.tag_name }}" > release_notes.md
+          echo "" >> release_notes.md
+          echo "## 🕌 Prayer Schedule App - Indonesian Islamic Prayer Times" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### ✨ Features:" >> release_notes.md
+          echo "- 🕐 **Auto-advance Prayer Times** - Automatically highlights current and next prayers" >> release_notes.md
+          echo "- 🎨 **8 Theme Colors** with full dark mode support" >> release_notes.md
+          echo "- 🖼️ **Sortable Background Images** - Drag & drop to reorder rotation" >> release_notes.md
+          echo "- 🔄 **Dual Background Types** - Otomatis (Unsplash) and Local (Custom uploads)" >> release_notes.md
+          echo "- 🌅 **Automatic Image Rotation** with user-controlled order" >> release_notes.md
+          echo "- 🇮🇩 **Indonesian Localization** for better user experience" >> release_notes.md
+          echo "- ⚙️ **Modern Settings Modal** with comprehensive customization" >> release_notes.md
+          echo "- 📱 **Responsive Design** works on all screen sizes" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 📦 Downloads:" >> release_notes.md
+          echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
+          echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
+          echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 🔧 Installation:" >> release_notes.md
+          echo "1. Download the appropriate file for your operating system" >> release_notes.md
+          echo "2. Run the installer or open the application" >> release_notes.md
+          echo "3. Configure your location and preferences in Settings" >> release_notes.md
+          echo "4. Enjoy accurate prayer times with beautiful backgrounds!" >> release_notes.md
