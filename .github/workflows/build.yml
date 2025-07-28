@@ -144,7 +144,17 @@ jobs:
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
+          echo "#### Windows & Linux:" >> release_notes.md
           echo "1. Download the appropriate file for your operating system" >> release_notes.md
           echo "2. Run the installer or open the application" >> release_notes.md
-          echo "3. Configure your location and preferences in Settings" >> release_notes.md
-          echo "4. Enjoy accurate prayer times with beautiful backgrounds!" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### macOS:" >> release_notes.md
+          echo "1. Download the `.dmg` file" >> release_notes.md
+          echo "2. Open the `.dmg` and drag Jam Shalat to Applications" >> release_notes.md
+          echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
+          echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
+          echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### ⚙️ Setup:" >> release_notes.md
+          echo "1. Configure your location and preferences in Settings" >> release_notes.md
+          echo "2. Enjoy accurate prayer times with beautiful backgrounds!" >> release_notes.md

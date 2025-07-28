@@ -77,7 +77,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     tema: false,
     images: false
   });
-  const appVersion = '1.0.0';
+  const appVersion = '1.0.2';
   const UNSPLASH_ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY || 'BkgEMpfG_ReNpVwJcbgNx30IZXhoFoWwKgwbrPU0hq4';
 
   const filteredLocations = locations.filter(location =>
