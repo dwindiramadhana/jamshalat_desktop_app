@@ -63,12 +63,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
         with:
-          tagName: ${{ github.event.release.tag_name || format('v{0}', github.run_number) }} # This only works if your workflow triggers on new releases.
-          releaseName: 'Jam Shalat v__VERSION__' # tauri-action replaces \_\_VERSION\_\_ with the app version.
+          tagName: ${{ github.event.release.tag_name || format('v{0}', github.run_number) }}
+          releaseName: 'Jam Shalat v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
+          releaseDraft: ${{ github.event_name != 'release' }}
           prerelease: false
           args: ${{ matrix.args }}
+          uploadUrl: ${{ github.event.release.upload_url }}
+
+      - name: Upload artifacts (for non-release builds)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-${{ matrix.platform }}
+          path: |
+            src-tauri/target/*/release/bundle/*/*
+            !src-tauri/target/*/release/bundle/*/*.dSYM
+          retention-days: 30
 
   # Combine all artifacts into a single release
   release:
