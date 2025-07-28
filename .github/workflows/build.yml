@@ -18,12 +18,16 @@ jobs:
         include:
           - platform: 'macos-latest' # for Arm based macs (M1 and above).
             args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
           - platform: 'macos-latest' # for Intel based macs.
             args: '--target x86_64-apple-darwin'
+            target: 'x86_64-apple-darwin'
           - platform: 'ubuntu-22.04' # for Tauri v1 you could use ubuntu-20.04.
             args: ''
+            target: 'x86_64-unknown-linux-gnu'
           - platform: 'windows-latest'
             args: ''
+            target: 'x86_64-pc-windows-msvc'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -69,17 +73,17 @@ jobs:
           releaseDraft: ${{ github.event_name != 'release' }}
           prerelease: false
           args: ${{ matrix.args }}
-          uploadUrl: ${{ github.event.release.upload_url }}
 
       - name: Upload artifacts (for non-release builds)
         if: github.event_name != 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: jam-shalat-${{ matrix.platform }}
+          name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
           path: |
             src-tauri/target/*/release/bundle/*/*
             !src-tauri/target/*/release/bundle/*/*.dSYM
           retention-days: 30
+          if-no-files-found: warn
 
   # Combine all artifacts into a single release
   release:
