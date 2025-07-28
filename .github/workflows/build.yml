@@ -67,10 +67,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
         with:
-          tagName: ${{ github.event.release.tag_name || format('v{0}', github.run_number) }}
-          releaseName: 'Jam Shalat v__VERSION__'
-          releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: ${{ github.event_name != 'release' }}
+          # Only create release for actual release events
+          tagName: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+          releaseName: ${{ github.event_name == 'release' && 'Jam Shalat v__VERSION__' || '' }}
+          releaseBody: ${{ github.event_name == 'release' && 'See the assets to download and install this version.' || '' }}
+          releaseDraft: ${{ github.event_name == 'release' && false || true }}
           prerelease: false
           args: ${{ matrix.args }}
 
@@ -80,6 +81,8 @@ jobs:
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
           path: |
+            src-tauri/target/${{ matrix.target || 'release' }}/release/bundle/dmg/
+            src-tauri/target/${{ matrix.target || 'release' }}/release/bundle/macos/
             src-tauri/target/release/bundle/dmg/
             src-tauri/target/release/bundle/macos/
             !src-tauri/target/*/release/bundle/*/*.dSYM
