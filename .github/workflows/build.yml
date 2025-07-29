@@ -16,6 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Desktop builds
           - platform: 'macos-latest' # for Arm based macs (M1 and above).
             args: '--target aarch64-apple-darwin'
             target: 'aarch64-apple-darwin'
@@ -28,6 +29,15 @@ jobs:
           - platform: 'windows-latest'
             args: ''
             target: 'x86_64-pc-windows-msvc'
+          # Mobile builds
+          - platform: 'ubuntu-22.04'
+            args: '--target aarch64-linux-android'
+            target: 'aarch64-linux-android'
+            mobile: 'android'
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-ios'
+            target: 'aarch64-apple-ios'
+            mobile: 'ios'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -35,16 +45,58 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android' # Desktop Linux only
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Install Android dependencies
+        if: matrix.mobile == 'android'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+
+      - name: Setup Android SDK
+        if: matrix.mobile == 'android'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+          add-to-path: false
+
+      - name: Setup Android SDK Tools
+        if: matrix.mobile == 'android'
+        run: |
+          # Install Android SDK command line tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          # Accept licenses
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          # Install required SDK components
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Setup iOS dependencies
+        if: matrix.mobile == 'ios'
+        run: |
+          # Install iOS targets and additional tools
+          rustup target add aarch64-apple-ios
+          # Ensure Xcode command line tools are available
+          xcode-select --install || true
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up the linux and windows runners.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          # Add targets based on platform and mobile type
+          targets: ${{ 
+            (matrix.platform == 'macos-latest' && matrix.mobile != 'ios') && 'aarch64-apple-darwin,x86_64-apple-darwin' ||
+            (matrix.mobile == 'android') && 'aarch64-linux-android' ||
+            (matrix.mobile == 'ios') && 'aarch64-apple-ios' ||
+            '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -76,7 +128,7 @@ jobs:
           args: ${{ matrix.args }}
 
       - name: Upload artifacts (macOS)
-        if: github.event_name != 'release' && matrix.platform == 'macos-latest'
+        if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
@@ -101,13 +153,35 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload artifacts (Linux)
-        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04'
+        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android'
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
           path: |
             src-tauri/target/release/bundle/deb/
             src-tauri/target/release/bundle/appimage/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload artifacts (Android)
+        if: github.event_name != 'release' && matrix.mobile == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-android-${{ matrix.target }}
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload artifacts (iOS)
+        if: github.event_name != 'release' && matrix.mobile == 'ios'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-ios-${{ matrix.target }}
+          path: |
+            src-tauri/gen/apple/build/arm64/*.ipa
+            src-tauri/gen/apple/Payload/*.app
           retention-days: 30
           if-no-files-found: warn
 
@@ -139,9 +213,14 @@ jobs:
           echo "- 📱 **Responsive Design** works on all screen sizes" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 📦 Downloads:" >> release_notes.md
-          echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
-          echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
-          echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
+          echo "#### Desktop:" >> release_notes.md
+          echo "- **Windows**: Download the \`.msi\` installer" >> release_notes.md
+          echo "- **macOS**: Download the \`.dmg\` file (Universal - Intel & Apple Silicon)" >> release_notes.md
+          echo "- **Linux**: Download the \`.AppImage\` or \`.deb\` package" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Mobile:" >> release_notes.md
+          echo "- **Android**: Download the \`.apk\` file (Android 7.0+)" >> release_notes.md
+          echo "- **iOS**: Download the \`.ipa\` file (iOS 13.0+) - Requires TestFlight or Enterprise distribution" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -154,6 +233,16 @@ jobs:
           echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Android:" >> release_notes.md
+          echo "1. Download the \`.apk\` file" >> release_notes.md
+          echo "2. Enable \"Install from Unknown Sources\" in Android Settings" >> release_notes.md
+          echo "3. Open the APK file and follow installation prompts" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### iOS:" >> release_notes.md
+          echo "1. Download the \`.ipa\` file" >> release_notes.md
+          echo "2. Install via TestFlight, AltStore, or Enterprise distribution" >> release_notes.md
+          echo "3. Trust the developer certificate in iOS Settings if required" >> release_notes.md
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md
