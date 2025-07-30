@@ -17,58 +17,63 @@ jobs:
       matrix:
         include:
           # Desktop builds
-          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+          - platform: 'macos-latest' # ARM macs M1 and above
             args: '--target aarch64-apple-darwin'
             target: 'aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
+            mobile: false
+          - platform: 'macos-latest' # Intel macs
             args: '--target x86_64-apple-darwin'
             target: 'x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04' # for Tauri v1 you could use ubuntu-20.04.
+            mobile: false
+          - platform: 'ubuntu-22.04' # Linux desktop
             args: ''
             target: 'x86_64-unknown-linux-gnu'
+            mobile: false
           - platform: 'windows-latest'
             args: ''
             target: 'x86_64-pc-windows-msvc'
-          # Mobile builds
+            mobile: false
+          # Android build
           - platform: 'ubuntu-22.04'
             args: '--target aarch64-linux-android'
             target: 'aarch64-linux-android'
             mobile: 'android'
 
     runs-on: ${{ matrix.platform }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android'
+      - name: Install dependencies (Ubuntu desktop only)
+        if: matrix.platform == 'ubuntu-22.04' && matrix.mobile == false
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Setup JDK 17
+      - name: Setup JDK 17 (Android only)
         if: matrix.mobile == 'android'
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android Environment
+      - name: Setup Android Environment (Android only)
         if: matrix.mobile == 'android'
         uses: android-actions/setup-android@v3
         with:
           packages: 'ndk;27.3.13750724'
 
-      - name: Add additional Rust targets for Android
+      - name: Add Rust targets for Android (Android only)
         if: matrix.mobile == 'android'
-        run: rustup target add armv7-linux-androideabi i686-linux-android x86_64-linux-android
+        run: rustup target add armv7-linux-androideabi i686-linux-android x86_64-linux-android aarch64-linux-android
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Sync node version and setup cache
+      - name: Setup Node.js and cache NPM
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
@@ -77,7 +82,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build and release desktop app
+      - name: Build and release desktop app (non-Android non-mobile)
         if: matrix.mobile == false
         uses: tauri-apps/tauri-action@v0
         env:
@@ -87,28 +92,31 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Jam Shalat v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: ${{ github.event_name == 'release' && false || true }}
+          releaseDraft: ${{ github.event_name != 'release' }}
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Decode Android Keystore
+      # --- Android Signing Setup ---
+
+      - name: Decode Android Keystore (Android only)
         if: matrix.mobile == 'android'
         id: decode_keystore
         run: |
-          echo "${{ secrets.TAURI_KEY_PATH }}" | base64 --decode > jam-shalat-keystore.jks
+          echo "${{ secrets.TAURI_KEY_BASE64 }}" | base64 --decode > jam-shalat-keystore.jks
           echo "keystore_path=$(pwd)/jam-shalat-keystore.jks" >> "$GITHUB_OUTPUT"
 
-      - name: Build Android app
+      - name: Build Android app (Android only)
         if: matrix.mobile == 'android'
-        run: npx tauri android build --apk
+        run: npx tauri android build --release --apk
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
           TAURI_KEY_PATH: ${{ steps.decode_keystore.outputs.keystore_path }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
 
-      - name: List generated files (for debugging)
+      - name: List generated APK files (Android only, debug)
         if: matrix.mobile == 'android'
         run: find src-tauri/gen/android/app/build/outputs/apk -type f -print
 
@@ -118,6 +126,8 @@ jobs:
         with:
           name: jam-shalat-android-signed
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload artifacts (macOS)
         if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile == false
@@ -134,7 +144,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload artifacts (Windows)
-        if: github.event_name != 'release' && matrix.platform == 'windows-latest'
+        if: github.event_name != 'release' && matrix.platform == 'windows-latest' && matrix.mobile == false
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
@@ -145,7 +155,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload artifacts (Linux)
-        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android'
+        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04' && matrix.mobile == false
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
@@ -155,29 +165,6 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Upload artifacts (Android)
-        if: github.event_name != 'release' && matrix.mobile == 'android'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-android-${{ matrix.target }}
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Upload artifacts (iOS)
-        if: github.event_name != 'release' && matrix.mobile == 'ios'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-ios-${{ matrix.target }}
-          path: |
-            src-tauri/gen/apple/build/arm64/*.ipa
-            src-tauri/gen/apple/Payload/*.app
-          retention-days: 30
-          if-no-files-found: warn
-
-  # Combine all artifacts into a single release
   release:
     permissions:
       contents: write
@@ -212,7 +199,7 @@ jobs:
           echo "" >> release_notes.md
           echo "#### Mobile:" >> release_notes.md
           echo "- **Android**: Download the \`.apk\` file (Android 7.0+)" >> release_notes.md
-
+          echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
           echo "1. Download the appropriate file for your operating system" >> release_notes.md
@@ -230,7 +217,6 @@ jobs:
           echo "2. Enable \"Install from Unknown Sources\" in Android Settings" >> release_notes.md
           echo "3. Open the APK file and follow installation prompts" >> release_notes.md
           echo "" >> release_notes.md
-
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md
           echo "2. Enjoy accurate prayer times with beautiful backgrounds!" >> release_notes.md
