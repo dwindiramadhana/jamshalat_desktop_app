@@ -116,7 +116,7 @@ jobs:
 
       - name: Build Android
         if: matrix.mobile == 'android'
-        run: $CARGO_HOME/bin/tauri android build
+        run: ./node_modules/.bin/tauri android build
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
