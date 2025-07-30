@@ -98,7 +98,7 @@ jobs:
 
       - name: Build Android app
         if: matrix.mobile == 'android'
-        run: npx tauri android build
+        run: npx tauri android build --apk
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
