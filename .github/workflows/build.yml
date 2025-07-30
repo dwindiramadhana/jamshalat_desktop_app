@@ -54,66 +54,44 @@ jobs:
         if: matrix.mobile == 'android'
         uses: android-actions/setup-android@v3
         with:
-          # Installs Java, NDK, and the required SDK packages.
           ndk-version: r25c
-
-      - name: Install iOS Rust target
-        if: matrix.mobile == 'ios'
-        run: rustup target add aarch64-apple-ios
-
-      - name: Setup iOS dependencies
-        if: matrix.mobile == 'ios'
-        run: xcode-select --install || true
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-
       - name: Sync node version and setup cache
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'npm' # Set this to npm, yarn or pnpm.
-
-      - name: Setup Windows Environment
-        if: matrix.platform == 'windows-latest'
-        run: |
-          # This is a placeholder for potential future steps.
-          # The MSVC and WebView2 actions are now separate.
-
-      - name: Setup MSVC for Windows
-        if: matrix.platform == 'windows-latest'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install WebView2 for Windows
-        if: matrix.platform == 'windows-latest'
-        uses: tauri-apps/setup-webview2@v2
+          cache: 'npm'
 
       - name: Install frontend dependencies
-        # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
-        run: npm install # change this to npm or pnpm depending on which one you use.
+        run: npm install
 
-      - name: Build the app
+      - name: Build and release desktop app
+        if: matrix.mobile != 'android' && matrix.mobile != 'ios'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_KEY_PASSWORD: ${{ matrix.mobile == 'android' && secrets.TAURI_KEY_PASSWORD || '' }}
-          TAURI_KEY_ALIAS: ${{ matrix.mobile == 'android' && secrets.TAURI_KEY_ALIAS || '' }}
-          TAURI_KEY_PATH: ${{ matrix.mobile == 'android' && secrets.TAURI_KEY_PATH || '' }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
         with:
-          tagName: ${{ github.ref_name }} # This only works if you create releases from tags.
+          tagName: ${{ github.ref_name }}
           releaseName: 'Jam Shalat v__VERSION__'
-          releaseBody: ${{ github.event_name == 'release' && 'See the assets to download and install this version.' || '' }}
+          releaseBody: 'See the assets to download and install this version.'
           releaseDraft: ${{ github.event_name == 'release' && false || true }}
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Build Android app
+        if: matrix.mobile == 'android'
+        run: npx tauri android build
+        env:
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
+          TAURI_KEY_PATH: ${{ secrets.TAURI_KEY_PATH }}
+          VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
 
       - name: Upload artifacts (macOS)
         if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
