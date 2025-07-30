@@ -98,6 +98,8 @@ jobs:
       - name: Build iOS app
         if: matrix.mobile == 'ios'
         run: npx tauri ios build
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
 
       - name: Build Android app
         if: matrix.mobile == 'android'
