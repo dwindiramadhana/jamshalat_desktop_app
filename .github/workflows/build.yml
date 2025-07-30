@@ -91,6 +91,13 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Decode Android Keystore
+        if: matrix.mobile == 'android'
+        id: decode_keystore
+        run: |
+          echo "${{ secrets.TAURI_KEY_PATH }}" | base64 --decode > jam-shalat-keystore.jks
+          echo "keystore_path=$(pwd)/jam-shalat-keystore.jks" >> "$GITHUB_OUTPUT"
+
       - name: Build Android app
         if: matrix.mobile == 'android'
         run: npx tauri android build --apk
@@ -98,7 +105,7 @@ jobs:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
-          TAURI_KEY_PATH: ${{ secrets.TAURI_KEY_PATH }}
+          TAURI_KEY_PATH: ${{ steps.decode_keystore.outputs.keystore_path }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
 
       - name: List generated files (for debugging)
