@@ -103,6 +103,8 @@ jobs:
         if: matrix.mobile == 'android'
         run: ./node_modules/.bin/tauri android build
         env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
           CARGO_TARGET_AARCH64_LINUX_ANDROID_RUNNER: |
             -Pandroid.injected.signing.store.file=${{ steps.decode_keystore.outputs.keystore_path }}
