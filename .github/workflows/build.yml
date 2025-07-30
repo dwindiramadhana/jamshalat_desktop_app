@@ -17,25 +17,20 @@ jobs:
       matrix:
         include:
           # Desktop builds
-          - platform: 'macos-latest' # ARM macs M1 and above
-            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
             target: 'aarch64-apple-darwin'
             mobile: false
-          - platform: 'macos-latest' # Intel macs
-            args: '--target x86_64-apple-darwin'
+          - platform: 'macos-latest'
             target: 'x86_64-apple-darwin'
             mobile: false
-          - platform: 'ubuntu-22.04' # Linux desktop
-            args: ''
+          - platform: 'ubuntu-22.04'
             target: 'x86_64-unknown-linux-gnu'
             mobile: false
           - platform: 'windows-latest'
-            args: ''
             target: 'x86_64-pc-windows-msvc'
             mobile: false
           # Android build
           - platform: 'ubuntu-22.04'
-            args: '--target aarch64-linux-android'
             target: 'aarch64-linux-android'
             mobile: 'android'
 
@@ -82,22 +77,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build and release desktop app (non-Android non-mobile)
-        if: matrix.mobile == false
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Jam Shalat v__VERSION__'
-          releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: ${{ github.event_name != 'release' }}
-          prerelease: false
-          args: ${{ matrix.args }}
-
       # --- Android Signing Setup ---
-
       - name: Decode Android Keystore (Android only)
         if: matrix.mobile == 'android'
         id: decode_keystore
@@ -105,16 +85,21 @@ jobs:
           echo "${{ secrets.TAURI_KEY_BASE64 }}" | base64 --decode > jam-shalat-keystore.jks
           echo "keystore_path=$(pwd)/jam-shalat-keystore.jks" >> "$GITHUB_OUTPUT"
 
-      - name: Build Desktop
+      # --- Build Steps ---
+      - name: Build Desktop App
         if: matrix.mobile == false
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: src-tauri
-          distPath: ../dist
-          iconPath: ../public/IconJamShalat.png
-          args: ${{ format('build --target {0}', matrix.target) }}
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Jam Shalat v__VERSION__'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ format('--target {0}', matrix.target) }}
 
-      - name: Build Android
+      - name: Build Android App
         if: matrix.mobile == 'android'
         run: ./node_modules/.bin/tauri android build
         env:
@@ -125,107 +110,10 @@ jobs:
           TAURI_KEY_PATH: ${{ steps.decode_keystore.outputs.keystore_path }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
 
-      - name: List generated APK files (Android only, debug)
-        if: matrix.mobile == 'android'
-        run: find src-tauri/gen/android/app/build/outputs/apk -type f -print
-
-      - name: Upload artifacts (Android)
+      # --- Artifact Upload ---
+      - name: Upload Android Artifact
         if: matrix.mobile == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-android-signed
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Upload artifacts (macOS)
-        if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile == false
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
-          path: |
-            src-tauri/target/${{ matrix.target || 'release' }}/release/bundle/dmg/
-            src-tauri/target/${{ matrix.target || 'release' }}/release/bundle/macos/
-            src-tauri/target/release/bundle/dmg/
-            src-tauri/target/release/bundle/macos/
-            !src-tauri/target/*/release/bundle/*/*.dSYM
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Upload artifacts (Windows)
-        if: github.event_name != 'release' && matrix.platform == 'windows-latest' && matrix.mobile == false
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
-          path: |
-            src-tauri/target/release/bundle/msi/
-            src-tauri/target/release/bundle/nsis/
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Upload artifacts (Linux)
-        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04' && matrix.mobile == false
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
-          path: |
-            src-tauri/target/release/bundle/deb/
-            src-tauri/target/release/bundle/appimage/
-          retention-days: 30
-          if-no-files-found: warn
-
-  release:
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    needs: build
-    if: github.event_name == 'release'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Create Release Notes
-        run: |
-          echo "# Jam Shalat v${{ github.event.release.tag_name }}" > release_notes.md
-          echo "" >> release_notes.md
-          echo "## 🕌 Prayer Schedule App - Indonesian Islamic Prayer Times" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### ✨ Features:" >> release_notes.md
-          echo "- 🕐 **Auto-advance Prayer Times** - Automatically highlights current and next prayers" >> release_notes.md
-          echo "- 🎨 **8 Theme Colors** with full dark mode support" >> release_notes.md
-          echo "- 🖼️ **Sortable Background Images** - Drag & drop to reorder rotation" >> release_notes.md
-          echo "- 🔄 **Dual Background Types** - Otomatis (Unsplash) and Local (Custom uploads)" >> release_notes.md
-          echo "- 🌅 **Automatic Image Rotation** with user-controlled order" >> release_notes.md
-          echo "- 🇮🇩 **Indonesian Localization** for better user experience" >> release_notes.md
-          echo "- ⚙️ **Modern Settings Modal** with comprehensive customization" >> release_notes.md
-          echo "- 📱 **Responsive Design** works on all screen sizes" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### 📦 Downloads:" >> release_notes.md
-          echo "#### Desktop:" >> release_notes.md
-          echo "- **Windows**: Download the \`.msi\` installer" >> release_notes.md
-          echo "- **macOS**: Download the \`.dmg\` file (Universal - Intel & Apple Silicon)" >> release_notes.md
-          echo "- **Linux**: Download the \`.AppImage\` or \`.deb\` package" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### Mobile:" >> release_notes.md
-          echo "- **Android**: Download the \`.apk\` file (Android 7.0+)" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### 🔧 Installation:" >> release_notes.md
-          echo "#### Windows & Linux:" >> release_notes.md
-          echo "1. Download the appropriate file for your operating system" >> release_notes.md
-          echo "2. Run the installer or open the application" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### macOS:" >> release_notes.md
-          echo "1. Download the `.dmg` file" >> release_notes.md
-          echo "2. Open the `.dmg` and drag Jam Shalat to Applications" >> release_notes.md
-          echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
-          echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
-          echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### Android:" >> release_notes.md
-          echo "1. Download the \`.apk\` file" >> release_notes.md
-          echo "2. Enable \"Install from Unknown Sources\" in Android Settings" >> release_notes.md
-          echo "3. Open the APK file and follow installation prompts" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### ⚙️ Setup:" >> release_notes.md
-          echo "1. Configure your location and preferences in Settings" >> release_notes.md
-          echo "2. Enjoy accurate prayer times with beautiful backgrounds!" >> release_notes.md
