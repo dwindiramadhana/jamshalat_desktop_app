@@ -34,7 +34,7 @@ jobs:
             args: '--target aarch64-linux-android'
             target: 'aarch64-linux-android'
             mobile: 'android'
-          - platform: 'macos-latest'
+          - platform: 'macos-14'
             args: '--target aarch64-apple-ios'
             target: 'aarch64-apple-ios'
             mobile: 'ios'
@@ -108,6 +108,10 @@ jobs:
           TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
           TAURI_KEY_PATH: ${{ secrets.TAURI_KEY_PATH }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
+
+      - name: List generated files (for debugging)
+        if: matrix.mobile == 'android'
+        run: find src-tauri/gen -type f -print
 
       - name: Upload artifacts (Android)
         if: matrix.mobile == 'android'
