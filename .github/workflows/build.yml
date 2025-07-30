@@ -34,10 +34,6 @@ jobs:
             args: '--target aarch64-linux-android'
             target: 'aarch64-linux-android'
             mobile: 'android'
-          - platform: 'macos-14'
-            args: '--target aarch64-apple-ios'
-            target: 'aarch64-apple-ios'
-            mobile: 'ios'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -82,7 +78,7 @@ jobs:
         run: npm install
 
       - name: Build and release desktop app
-        if: matrix.mobile != 'android' && matrix.mobile != 'ios'
+        if: matrix.mobile == false
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,12 +90,6 @@ jobs:
           releaseDraft: ${{ github.event_name == 'release' && false || true }}
           prerelease: false
           args: ${{ matrix.args }}
-
-      - name: Build iOS app
-        if: matrix.mobile == 'ios'
-        run: npx tauri ios build
-        env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
 
       - name: Build Android app
         if: matrix.mobile == 'android'
@@ -123,7 +113,7 @@ jobs:
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
 
       - name: Upload artifacts (macOS)
-        if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
+        if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile == false
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
@@ -215,8 +205,7 @@ jobs:
           echo "" >> release_notes.md
           echo "#### Mobile:" >> release_notes.md
           echo "- **Android**: Download the \`.apk\` file (Android 7.0+)" >> release_notes.md
-          echo "- **iOS**: Download the \`.ipa\` file (iOS 13.0+) - Requires TestFlight or Enterprise distribution" >> release_notes.md
-          echo "" >> release_notes.md
+
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
           echo "1. Download the appropriate file for your operating system" >> release_notes.md
@@ -234,11 +223,7 @@ jobs:
           echo "2. Enable \"Install from Unknown Sources\" in Android Settings" >> release_notes.md
           echo "3. Open the APK file and follow installation prompts" >> release_notes.md
           echo "" >> release_notes.md
-          echo "#### iOS:" >> release_notes.md
-          echo "1. Download the \`.ipa\` file" >> release_notes.md
-          echo "2. Install via TestFlight, AltStore, or Enterprise distribution" >> release_notes.md
-          echo "3. Trust the developer certificate in iOS Settings if required" >> release_notes.md
-          echo "" >> release_notes.md
+
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md
           echo "2. Enjoy accurate prayer times with beautiful backgrounds!" >> release_notes.md
