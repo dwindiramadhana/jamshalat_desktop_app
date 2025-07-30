@@ -117,6 +117,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
+          TAURI_KEY_PATH: ${{ secrets.TAURI_KEY_PATH }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
         with:
           # Only create release for actual release events
@@ -125,7 +128,9 @@ jobs:
           releaseBody: ${{ github.event_name == 'release' && 'See the assets to download and install this version.' || '' }}
           releaseDraft: ${{ github.event_name == 'release' && false || true }}
           prerelease: false
-          args: ${{ matrix.args }}
+          args: >-
+            ${{ matrix.args }}
+            ${{ matrix.mobile && '--features mobile' || '' }}
 
       - name: Upload artifacts (macOS)
         if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
