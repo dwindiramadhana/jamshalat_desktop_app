@@ -26,8 +26,7 @@ lerna-debug.log*
 
 # Tauri build files
 /src-tauri/gen
-/src-tauri/target/
-/src-tauri/Cargo.lock
+/src-tauri/target
 
 # Build artifacts
 *.apk

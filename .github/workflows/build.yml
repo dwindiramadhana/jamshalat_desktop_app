@@ -128,9 +128,7 @@ jobs:
           releaseBody: ${{ github.event_name == 'release' && 'See the assets to download and install this version.' || '' }}
           releaseDraft: ${{ github.event_name == 'release' && false || true }}
           prerelease: false
-          args: >-
-            ${{ matrix.args }}
-            ${{ matrix.mobile && '--features mobile' || '' }}
+          args: ${{ matrix.args }}
 
       - name: Upload artifacts (macOS)
         if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
