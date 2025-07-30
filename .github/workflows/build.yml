@@ -95,14 +95,11 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Set iOS Development Team
-        if: matrix.mobile == 'ios'
-        run: |
-          sed -i.bak 's/"developmentTeam": ""/"developmentTeam": "${{ secrets.APPLE_DEVELOPMENT_TEAM }}"/' src-tauri/tauri.conf.json
-
       - name: Build iOS app
         if: matrix.mobile == 'ios'
         run: npx tauri ios build
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
 
       - name: Build Android app
         if: matrix.mobile == 'android'
@@ -116,14 +113,14 @@ jobs:
 
       - name: List generated files (for debugging)
         if: matrix.mobile == 'android'
-        run: find src-tauri/target -type f -print
+        run: find src-tauri/gen/android/app/build/outputs/apk -type f -print
 
       - name: Upload artifacts (Android)
         if: matrix.mobile == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-android-signed
-          path: src-tauri/target/release/apk/*.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
 
       - name: Upload artifacts (macOS)
         if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
