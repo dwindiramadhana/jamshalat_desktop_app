@@ -45,46 +45,28 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android' # Desktop Linux only
+        if: matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Install macOS dependencies
-        if: matrix.platform == 'macos-latest'
-        run: brew install libiconv
-
-      - name: Install Android dependencies
-        if: matrix.mobile == 'android'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
 
       - name: Setup Android Environment
         if: matrix.mobile == 'android'
         uses: android-actions/setup-android@v3
         with:
-          # Installs the NDK, and the required SDK packages.
+          # Installs Java, NDK, and the required SDK packages.
           ndk-version: r25c
 
       - name: Setup iOS dependencies
         if: matrix.mobile == 'ios'
         run: |
-          # Install iOS targets and additional tools
           rustup target add aarch64-apple-ios
-          # Ensure Xcode command line tools are available
           xcode-select --install || true
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Add targets based on platform and mobile type
-          targets: ${{ 
-            (matrix.platform == 'macos-latest' && matrix.mobile != 'ios') && 'aarch64-apple-darwin,x86_64-apple-darwin' ||
-            (matrix.mobile == 'android') && 'aarch64-linux-android' ||
-            (matrix.mobile == 'ios') && 'aarch64-apple-ios' ||
-            '' }}
+          targets: ${{ matrix.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -97,9 +79,12 @@ jobs:
           node-version: 'lts/*'
           cache: 'npm' # Set this to npm, yarn or pnpm.
 
-      - name: Setup MSVC for Windows
+      - name: Setup MSVC & WebView2 for Windows
         if: matrix.platform == 'windows-latest'
         uses: ilammy/msvc-dev-cmd@v1
+      - name: Install WebView2 for Windows
+        if: matrix.platform == 'windows-latest'
+        uses: tauri-apps/setup-webview2@v2
 
       - name: Install frontend dependencies
         # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
