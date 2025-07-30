@@ -103,12 +103,12 @@ jobs:
         if: matrix.mobile == 'android'
         run: ./node_modules/.bin/tauri android build
         env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
-          TAURI_KEY_PATH: ${{ steps.decode_keystore.outputs.keystore_path }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUNNER: |
+            -Pandroid.injected.signing.store.file=${{ steps.decode_keystore.outputs.keystore_path }}
+            -Pandroid.injected.signing.store.password=${{ secrets.TAURI_KEY_PASSWORD }}
+            -Pandroid.injected.signing.key.alias=${{ secrets.TAURI_KEY_ALIAS }}
+            -Pandroid.injected.signing.key.password=${{ secrets.TAURI_KEY_PASSWORD }}
 
       # --- Artifact Upload ---
       - name: Upload Android Artifact
