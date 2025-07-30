@@ -105,16 +105,18 @@ jobs:
           echo "${{ secrets.TAURI_KEY_BASE64 }}" | base64 --decode > jam-shalat-keystore.jks
           echo "keystore_path=$(pwd)/jam-shalat-keystore.jks" >> "$GITHUB_OUTPUT"
 
-      - name: Build with Tauri
+      - name: Build Desktop
+        if: matrix.mobile == false
         uses: tauri-apps/tauri-action@v0
         with:
           projectPath: src-tauri
           distPath: ../dist
           iconPath: ../public/IconJamShalat.png
-          args: >-
-            ${{ matrix.mobile == 'android' &&
-              'android build' ||
-              format('build --target {0}', matrix.target) }}
+          args: ${{ format('build --target {0}', matrix.target) }}
+
+      - name: Build Android
+        if: matrix.mobile == 'android'
+        run: $CARGO_HOME/bin/tauri android build
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
