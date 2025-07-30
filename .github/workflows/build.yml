@@ -61,7 +61,7 @@ jobs:
         if: matrix.mobile == 'android'
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: r25c
+          packages: 'ndk;27.3.13750724'
 
       - name: Add additional Rust targets for Android
         if: matrix.mobile == 'android'
@@ -95,6 +95,9 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Build iOS app
+        if: matrix.mobile == 'ios'
+        run: npx tauri ios build
 
       - name: Build Android app
         if: matrix.mobile == 'android'
@@ -105,6 +108,13 @@ jobs:
           TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
           TAURI_KEY_PATH: ${{ secrets.TAURI_KEY_PATH }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
+
+      - name: Upload artifacts (Android)
+        if: matrix.mobile == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-android-signed
+          path: src-tauri/gen/android/app/build/outputs/apk/release/*.apk
 
       - name: Upload artifacts (macOS)
         if: github.event_name != 'release' && matrix.platform == 'macos-latest' && matrix.mobile != 'ios'
