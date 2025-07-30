@@ -105,14 +105,16 @@ jobs:
           echo "${{ secrets.TAURI_KEY_BASE64 }}" | base64 --decode > jam-shalat-keystore.jks
           echo "keystore_path=$(pwd)/jam-shalat-keystore.jks" >> "$GITHUB_OUTPUT"
 
-      - name: Configure Android Signing in tauri.conf.json
-        if: matrix.mobile == 'android'
-        run: |
-          sed -i.bak 's/"minSdkVersion": 24/"minSdkVersion": 24,\n      "keystore": {\n        "pathEnv": "TAURI_KEY_PATH",\n        "passwordEnv": "TAURI_KEY_PASSWORD",\n        "alias": "jamshalat_release"\n      }/g' src-tauri/tauri.conf.json
-
-      - name: Build Android app (Android only)
-        if: matrix.mobile == 'android'
-        run: npx tauri android build
+      - name: Build with Tauri
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+          distPath: ../dist
+          iconPath: ../public/IconJamShalat.png
+          args: >-
+            ${{ matrix.mobile == 'android' &&
+              'android build' ||
+              format('build --target {0}', matrix.target) }}
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
