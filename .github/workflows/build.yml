@@ -57,11 +57,13 @@ jobs:
           # Installs Java, NDK, and the required SDK packages.
           ndk-version: r25c
 
+      - name: Install iOS Rust target
+        if: matrix.mobile == 'ios'
+        run: rustup target add aarch64-apple-ios
+
       - name: Setup iOS dependencies
         if: matrix.mobile == 'ios'
-        run: |
-          rustup target add aarch64-apple-ios
-          xcode-select --install || true
+        run: xcode-select --install || true
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
@@ -79,9 +81,16 @@ jobs:
           node-version: 'lts/*'
           cache: 'npm' # Set this to npm, yarn or pnpm.
 
-      - name: Setup MSVC & WebView2 for Windows
+      - name: Setup Windows Environment
+        if: matrix.platform == 'windows-latest'
+        run: |
+          # This is a placeholder for potential future steps.
+          # The MSVC and WebView2 actions are now separate.
+
+      - name: Setup MSVC for Windows
         if: matrix.platform == 'windows-latest'
         uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install WebView2 for Windows
         if: matrix.platform == 'windows-latest'
         uses: tauri-apps/setup-webview2@v2
