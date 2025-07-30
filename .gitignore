@@ -25,7 +25,6 @@ lerna-debug.log*
 *.sw?
 
 # Tauri build files
-/src-tauri/gen
 /src-tauri/target
 
 # Build artifacts
