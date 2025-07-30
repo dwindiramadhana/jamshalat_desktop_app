@@ -59,12 +59,7 @@
       }
     },
     "android": {
-      "minSdkVersion": 24,
-      "keystore": {
-        "pathEnv": "TAURI_KEY_PATH",
-        "passwordEnv": "TAURI_KEY_PASSWORD",
-        "alias": "jamshalat_release"
-      }
+      "minSdkVersion": 24
     }
   }
 }
