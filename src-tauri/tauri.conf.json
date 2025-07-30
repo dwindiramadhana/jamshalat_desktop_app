@@ -32,7 +32,9 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "../public/IconJamShalat.png"
+      "../public/IconJamShalat.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "macOS": {
       "frameworks": [],

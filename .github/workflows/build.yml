@@ -91,6 +91,10 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Init Android app
+        if: matrix.mobile == 'android'
+        run: npx tauri android init
+
       - name: Build Android app
         if: matrix.mobile == 'android'
         run: npx tauri android build
