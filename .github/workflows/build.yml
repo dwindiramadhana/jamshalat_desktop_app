@@ -92,6 +92,13 @@ jobs:
           args: ${{ matrix.args }}
 
 
+      - name: Debug Android NDK Path
+        if: matrix.mobile == 'android'
+        run: |
+          echo "ANDROID_HOME is: $ANDROID_HOME"
+          echo "Listing contents of $ANDROID_HOME/ndk:"
+          ls -l $ANDROID_HOME/ndk
+
       - name: Build Android app
         if: matrix.mobile == 'android'
         run: npx tauri android build
