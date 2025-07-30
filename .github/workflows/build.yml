@@ -63,6 +63,10 @@ jobs:
         with:
           ndk-version: r25c
 
+      - name: Add Rust target for Android armv7
+        if: matrix.mobile == 'android'
+        run: rustup target add armv7-linux-androideabi
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
