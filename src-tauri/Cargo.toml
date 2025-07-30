@@ -15,11 +15,20 @@ name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.3.1", features = [] }
+tauri-build = { version = "^2.0.0", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.7.0", features = [] }
-tauri-plugin-log = "2"
+# The 'mobile' feature is enabled automatically by the CLI based on the build target.
+tauri = { version = "^2.0.0", features = ["custom-protocol"] }
+tauri-plugin-log = "^2.0.0"
+tauri-plugin-shell = "^2.0.0"
+tauri-plugin-fs = "^2.0.0"
+tauri-plugin-dialog = "^2.0.0"
+
+[features]
+# This feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]

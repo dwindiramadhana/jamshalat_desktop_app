@@ -7,9 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Node.js
+/node_modules
+/dist
+/dist-ssr
 *.local
 
 # Editor directories and files
@@ -22,3 +23,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tauri build files
+/src-tauri/target
+
+# Build artifacts
+*.apk
+*.aab
+*.apk.idsig
+*.msi
+*.app
+*.dmg
+*.AppImage
+
+# Keystore files
+*.keystore
+
+# Local development files
+DEVELOPMENT_CHECKPOINT.md
+MOBILE_BUILD_COMPLETE.md
+MOBILE_BUILD_PROPOSAL.md
+PHASE_2_SUMMARY.md

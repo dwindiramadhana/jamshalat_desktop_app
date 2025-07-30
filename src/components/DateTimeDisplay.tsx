@@ -42,6 +42,16 @@ interface HijriResponse {
   };
 }
 
+interface DateTimeDisplayProps {
+  isDarkMode: boolean;
+  themeColors: {
+    bg: string;
+    text: string;
+    textLight: string;
+    hover: string;
+  };
+}
+
 const monthsID = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
@@ -55,7 +65,7 @@ const hijriMonthsID = [
   'Ramadhan', 'Syawal', 'Dzulqaidah', 'Dzulhijjah'
 ];
 
-export const DateTimeDisplay = () => {
+export const DateTimeDisplay: React.FC<DateTimeDisplayProps> = ({ isDarkMode, themeColors }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [hijriDate, setHijriDate] = useState<HijriDate | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,21 +143,40 @@ export const DateTimeDisplay = () => {
   return (
     <div className="flex flex-col sm:flex-row items-center sm:justify-between w-full text-center sm:text-left">
       {/* Time */}
-      <div className="text-5xl font-bold text-indigo-700 mb-2 sm:mb-0">
+      <div
+        className="text-5xl font-bold mb-2 sm:mb-0"
+        style={{ color: themeColors.text }}
+      >
         {formatTime(currentTime)}
       </div>
       
       {/* Date, Hijri, and Location */}
       <div className="text-center sm:text-right">
-        <div className="text-indigo-900 font-medium">
+        <div
+          className="font-medium"
+          style={{ color: isDarkMode ? '#e5e7eb' : themeColors.text }}
+        >
           {formatGregorianDate(currentTime)}
         </div>
         {loading ? (
-          <div className="text-indigo-700/80 text-sm">Memuat tanggal Hijriah...</div>
+          <div
+            className="text-sm"
+            style={{ color: themeColors.textLight }}
+          >
+            Memuat tanggal Hijriah...
+          </div>
         ) : error ? (
-          <div className="text-indigo-700/80 text-sm">{error}</div>
+          <div
+            className="text-sm"
+            style={{ color: themeColors.textLight }}
+          >
+            {error}
+          </div>
         ) : hijriDate ? (
-          <div className="text-indigo-700/90 text-base font-medium">
+          <div
+            className="text-base font-medium"
+            style={{ color: isDarkMode ? '#d1d5db' : themeColors.text }}
+          >
             {formatHijriDate(hijriDate)}
           </div>
         ) : null}

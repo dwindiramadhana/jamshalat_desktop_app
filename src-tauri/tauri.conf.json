@@ -16,7 +16,12 @@
         "width": 800,
         "height": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "theme": "Dark"
       }
     ],
     "security": {
@@ -27,11 +32,9 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "../public/IconJamShalat.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "macOS": {
       "frameworks": [],
@@ -54,6 +57,9 @@
           "height": 400
         }
       }
+    },
+    "android": {
+      "minSdkVersion": 24
     }
   }
 }
