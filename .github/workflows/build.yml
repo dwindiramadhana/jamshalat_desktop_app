@@ -101,7 +101,7 @@ jobs:
 
       - name: Build Android App
         if: matrix.mobile == 'android'
-        run: ./node_modules/.bin/tauri android build --release
+        run: ./node_modules/.bin/tauri android build -- --release
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
