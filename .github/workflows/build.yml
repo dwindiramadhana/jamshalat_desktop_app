@@ -101,21 +101,54 @@ jobs:
 
       - name: Build Android App
         if: matrix.mobile == 'android'
-        run: ./node_modules/.bin/tauri android build
+        run: ./node_modules/.bin/tauri android build --release
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           NDK_HOME: /usr/local/lib/android/sdk/ndk/27.3.13750724
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
+          TAURI_KEY_PATH: ${{ steps.decode_keystore.outputs.keystore_path }}
           VITE_UNSPLASH_ACCESS_KEY: ${{ secrets.VITE_UNSPLASH_ACCESS_KEY }}
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUNNER: |
-            -Pandroid.injected.signing.store.file=${{ steps.decode_keystore.outputs.keystore_path }}
-            -Pandroid.injected.signing.store.password=${{ secrets.TAURI_KEY_PASSWORD }}
-            -Pandroid.injected.signing.key.alias=${{ secrets.TAURI_KEY_ALIAS }}
-            -Pandroid.injected.signing.key.password=${{ secrets.TAURI_KEY_PASSWORD }}
 
       # --- Artifact Upload ---
+      - name: Upload artifacts (macOS)
+        if: matrix.mobile == false && matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-macos-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload artifacts (Windows)
+        if: matrix.mobile == false && matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-windows-${{ matrix.target }}
+          path: |
+            src-tauri/target/release/bundle/msi/
+            src-tauri/target/release/bundle/nsis/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload artifacts (Linux)
+        if: matrix.mobile == false && matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-linux-${{ matrix.target }}
+          path: |
+            src-tauri/target/release/bundle/deb/
+            src-tauri/target/release/bundle/appimage/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Upload Android Artifact
         if: matrix.mobile == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-android-signed
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          retention-days: 30
+          if-no-files-found: warn
