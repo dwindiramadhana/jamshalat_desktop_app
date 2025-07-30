@@ -92,18 +92,11 @@ jobs:
           args: ${{ matrix.args }}
 
 
-      - name: Debug Android NDK Path
-        if: matrix.mobile == 'android'
-        run: |
-          echo "ANDROID_HOME is: $ANDROID_HOME"
-          echo "Listing contents of $ANDROID_HOME/ndk:"
-          ls -l $ANDROID_HOME/ndk
-
       - name: Build Android app
         if: matrix.mobile == 'android'
         run: npx tauri android build
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/r25c
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           TAURI_KEY_ALIAS: ${{ secrets.TAURI_KEY_ALIAS }}
           TAURI_KEY_PATH: ${{ secrets.TAURI_KEY_PATH }}
