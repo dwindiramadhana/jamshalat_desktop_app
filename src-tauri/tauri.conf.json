@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Jam Shalat",
   "version": "1.0.2",
-  "identifier": "com.jamshalat.app",
+  "identifier": "com.jamshalat.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -54,14 +54,6 @@
           "height": 400
         }
       }
-    },
-    "android": {
-      "minSdkVersion": 24
-    }
-  },
-  "plugins": {
-    "shell": {
-      "open": true
     }
   }
 }

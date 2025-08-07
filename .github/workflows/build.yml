@@ -40,8 +40,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-
-
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -113,8 +111,6 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-
-
   # Combine all artifacts into a single release
   release:
     permissions:
@@ -146,7 +142,6 @@ jobs:
           echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
           echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
-
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -159,8 +154,6 @@ jobs:
           echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
-          echo "" >> release_notes.md
-
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md
