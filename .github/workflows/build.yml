@@ -28,11 +28,6 @@ jobs:
           - platform: 'windows-latest'
             args: ''
             target: 'x86_64-pc-windows-msvc'
-          # Mobile platforms
-          - platform: 'ubuntu-22.04'
-            args: '--target aarch64-linux-android'
-            target: 'aarch64-linux-android'
-            mobile: 'android'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -40,45 +35,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      # Android dependencies
-      - name: Setup Android dependencies
-        if: matrix.mobile == 'android'
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        if: matrix.mobile == 'android'
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Android signing
-        if: matrix.mobile == 'android'
-        run: |
-          # Create keystore directory if it doesn't exist
-          mkdir -p src-tauri/gen/android
-          cd src-tauri/gen/android
-          # Create keystore.properties for signing
-          echo "keyAlias=jam-shalat-key" > keystore.properties
-          echo "password=jamshalat2024" >> keystore.properties
-          echo "storeFile=../../../android-release-key.jks" >> keystore.properties
-          # Create a temporary keystore for demo (in production, use secrets)
-          keytool -genkey -v -keystore ../../../android-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias jam-shalat-key -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat App, L=Jakarta, ST=Jakarta, C=ID" -storepass jamshalat2024 -keypass jamshalat2024
-          # Set NDK_HOME
-          export NDK_HOME=$ANDROID_HOME/ndk-bundle
 
 
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Include mobile targets based on the build matrix
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.mobile == 'android' && 'aarch64-linux-android' || '' }}
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up the linux and windows runners.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -135,24 +103,13 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload artifacts (Linux)
-        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04' && matrix.mobile != 'android'
+        if: github.event_name != 'release' && matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
           name: jam-shalat-${{ matrix.platform }}-${{ matrix.target || 'default' }}
           path: |
             src-tauri/target/release/bundle/deb/
             src-tauri/target/release/bundle/appimage/
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Upload artifacts (Android)
-        if: github.event_name != 'release' && matrix.mobile == 'android'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-android-${{ matrix.target }}
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/
           retention-days: 30
           if-no-files-found: warn
 
@@ -189,7 +146,7 @@ jobs:
           echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
           echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
-          echo "- **Android**: Download the `.apk` file for sideloading" >> release_notes.md
+
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -203,11 +160,7 @@ jobs:
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
           echo "" >> release_notes.md
-          echo "#### Android Mobile:" >> release_notes.md
-          echo "1. Download the `.apk` file" >> release_notes.md
-          echo "2. Enable \"Unknown Sources\" in Android Settings → Security" >> release_notes.md
-          echo "3. Install the APK file" >> release_notes.md
-          echo "4. Grant necessary permissions when prompted" >> release_notes.md
+
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md
