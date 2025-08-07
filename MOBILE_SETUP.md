@@ -1,14 +1,15 @@
-# Mobile Build Setup for Jam Shalat App
+# Android Mobile Build Setup for Jam Shalat App
 
-This document explains how to set up mobile builds (Android APK and iOS IPA) with proper signing for the Jam Shalat prayer times app.
+This document explains how to set up Android APK builds with proper signing for the Jam Shalat prayer times app.
 
 ## Overview
 
 The mobile setup includes:
 - **Android APK** builds with automatic signing
-- **iOS IPA** builds (requires Apple Developer account)
 - **GitHub Actions** integration for automated builds
 - **Local development** support
+
+**Note**: iOS builds are not included because they require a paid Apple Developer account ($99/year) for code signing. Even with Fastlane, iOS signing always requires valid certificates from Apple's paid program.
 
 ## Quick Setup
 
@@ -30,7 +31,6 @@ The following have been added to support mobile builds:
 
 **tauri.conf.json:**
 - Bundle identifier changed to `com.jamshalat.app`
-- iOS configuration with minimum system version 13.0
 - Android configuration with minimum SDK version 24
 
 ### 2. Android Signing
@@ -52,24 +52,19 @@ password=jamshalat2024
 storeFile=../../../android-release-key.jks
 ```
 
-### 3. iOS Signing
+### 3. iOS Signing (Not Implemented)
 
-**Requirements:**
-- Apple Developer account ($99/year)
-- Development team ID set in `tauri.conf.json`
-- Xcode with command line tools
+**Why iOS is not included:**
+- Requires paid Apple Developer account ($99/year)
+- No free alternative for iOS code signing
+- Fastlane cannot bypass Apple's certificate requirements
+- Would need valid certificates and provisioning profiles
 
-**Configuration:**
-Update `tauri.conf.json`:
-```json
-{
-  "bundle": {
-    "iOS": {
-      "developmentTeam": "YOUR_TEAM_ID_HERE"
-    }
-  }
-}
-```
+**If you want to add iOS later:**
+1. Subscribe to Apple Developer Program
+2. Add iOS configuration back to `tauri.conf.json`
+3. Set up certificates and provisioning profiles
+4. Re-enable iOS builds in GitHub Actions
 
 ## GitHub Actions Integration
 
@@ -77,16 +72,13 @@ The workflow now includes mobile builds:
 
 ### Build Matrix
 - **Android**: Ubuntu runner with Android SDK and NDK
-- **iOS**: macOS runner with Xcode tools
 - **Desktop**: Existing Windows, macOS, Linux builds
 
 ### Mobile Artifacts
 - **Android**: APK and AAB files in `src-tauri/gen/android/app/build/outputs/`
-- **iOS**: IPA files in `src-tauri/gen/ios/build/Build/Products/`
 
 ### Signing in CI/CD
 - **Android**: Automatic keystore creation and signing
-- **iOS**: Development certificate signing (requires Apple Developer setup)
 
 ## Local Development
 
@@ -96,23 +88,12 @@ npm run tauri android init    # First time only
 npm run tauri android build   # Build signed APK
 ```
 
-### iOS Build
-```bash
-npm run tauri ios init        # First time only (requires Apple Developer)
-npm run tauri ios build       # Build signed IPA
-```
-
 ## Installation on Devices
 
 ### Android
 1. Enable "Unknown Sources" in Settings → Security
 2. Download and install the APK file
 3. Grant necessary permissions
-
-### iOS
-1. Requires development certificate or jailbroken device
-2. Install via Xcode, AltStore, or similar tools
-3. Trust the developer certificate in Settings
 
 ## Security Notes
 
@@ -127,10 +108,7 @@ npm run tauri ios build       # Build signed IPA
 - **Signing failed**: Check keystore path and credentials
 - **Build failed**: Verify Java 17 is installed
 
-### iOS Issues
-- **No development team**: Set `developmentTeam` in tauri.conf.json
-- **Certificate issues**: Ensure valid Apple Developer account
-- **Xcode errors**: Update Xcode and command line tools
+
 
 ## File Structure
 
@@ -140,20 +118,19 @@ jam-shalat-app/
 ├── setup-mobile.sh                  # Mobile setup script
 ├── MOBILE_SETUP.md                  # This documentation
 ├── src-tauri/
-│   ├── tauri.conf.json              # Updated with mobile config
+│   ├── tauri.conf.json              # Updated with Android config
 │   ├── Cargo.toml                   # Updated with mobile features
 │   └── gen/
-│       ├── android/                 # Android project (after init)
-│       │   └── keystore.properties  # Android signing config
-│       └── ios/                     # iOS project (after init)
-└── .github/workflows/build.yml      # Updated with mobile builds
+│       └── android/                 # Android project (after init)
+│           └── keystore.properties  # Android signing config
+└── .github/workflows/build.yml      # Updated with Android builds
 ```
 
 ## Next Steps
 
 1. **For Android**: Ready to build! Run the setup script and test builds
-2. **For iOS**: Get Apple Developer account and set development team ID
+2. **For iOS**: Would require paid Apple Developer account ($99/year)
 3. **For Production**: Set up proper secret management for signing keys
-4. **For Distribution**: Consider app store publishing workflows
+4. **For Distribution**: Consider Google Play Store publishing workflows
 
-The mobile builds will be automatically generated by GitHub Actions and available as release artifacts alongside the desktop versions.
+The Android builds will be automatically generated by GitHub Actions and available as release artifacts alongside the desktop versions.

@@ -33,10 +33,6 @@ jobs:
             args: '--target aarch64-linux-android'
             target: 'aarch64-linux-android'
             mobile: 'android'
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-ios'
-            target: 'aarch64-apple-ios'
-            mobile: 'ios'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -76,18 +72,13 @@ jobs:
           # Set NDK_HOME
           export NDK_HOME=$ANDROID_HOME/ndk-bundle
 
-      # iOS dependencies
-      - name: Setup iOS dependencies
-        if: matrix.mobile == 'ios'
-        run: |
-          rustup target add aarch64-apple-ios
-          # iOS signing will be handled by Xcode with development certificates
+
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
           # Include mobile targets based on the build matrix
-          targets: ${{ matrix.platform == 'macos-latest' && matrix.mobile != 'ios' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.mobile == 'android' && 'aarch64-linux-android' || matrix.mobile == 'ios' && 'aarch64-apple-ios' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.mobile == 'android' && 'aarch64-linux-android' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -165,16 +156,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Upload artifacts (iOS)
-        if: github.event_name != 'release' && matrix.mobile == 'ios'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jam-shalat-ios-${{ matrix.target }}
-          path: |
-            src-tauri/gen/ios/build/Build/Products/Release-iphoneos/
-            src-tauri/gen/ios/build/Build/Products/Release-iphonesimulator/
-          retention-days: 30
-          if-no-files-found: warn
+
 
   # Combine all artifacts into a single release
   release:
@@ -208,7 +190,6 @@ jobs:
           echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
           echo "- **Android**: Download the `.apk` file for sideloading" >> release_notes.md
-          echo "- **iOS**: Download the `.ipa` file (requires development certificate or jailbreak)" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -222,16 +203,11 @@ jobs:
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
           echo "" >> release_notes.md
-          echo "#### Mobile:" >> release_notes.md
-          echo "**Android:**" >> release_notes.md
+          echo "#### Android Mobile:" >> release_notes.md
           echo "1. Download the `.apk` file" >> release_notes.md
           echo "2. Enable \"Unknown Sources\" in Android Settings → Security" >> release_notes.md
           echo "3. Install the APK file" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "**iOS:**" >> release_notes.md
-          echo "1. Download the `.ipa` file" >> release_notes.md
-          echo "2. Install using development tools like Xcode or AltStore" >> release_notes.md
-          echo "3. Note: Requires development certificate or jailbroken device" >> release_notes.md
+          echo "4. Grant necessary permissions when prompted" >> release_notes.md
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md

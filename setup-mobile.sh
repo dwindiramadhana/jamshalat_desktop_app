@@ -11,17 +11,13 @@ if [ ! -f "src-tauri/tauri.conf.json" ]; then
     exit 1
 fi
 
-echo "📱 Installing mobile Rust targets..."
-rustup target add aarch64-linux-android aarch64-apple-ios
+echo "📱 Installing Android Rust target..."
+rustup target add aarch64-linux-android
 
 echo "🤖 Initializing Android platform..."
 npm run tauri android init
 
-echo "🍎 Initializing iOS platform..."
-echo "Note: iOS initialization requires Apple Developer Team ID"
-echo "You can set it in tauri.conf.json under bundle.iOS.developmentTeam"
-echo "For now, skipping iOS init until you have Apple Developer account"
-# npm run tauri ios init
+
 
 echo "🔑 Creating Android keystore for signing..."
 if [ ! -f "android-release-key.jks" ]; then
@@ -48,10 +44,9 @@ cd ../../..
 echo "🎯 Mobile setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. For iOS: Get Apple Developer account and set developmentTeam in tauri.conf.json"
-echo "2. For Android: The keystore is ready for local builds"
-echo "3. GitHub Actions will handle the mobile builds automatically"
+echo "1. The Android keystore is ready for local builds"
+echo "2. GitHub Actions will handle the Android builds automatically"
+echo "3. iOS builds require paid Apple Developer account ($99/year) - skipped for now"
 echo ""
-echo "To test mobile builds locally:"
+echo "To test Android builds locally:"
 echo "- Android: npm run tauri android build"
-echo "- iOS: npm run tauri ios build (requires Apple Developer setup)"

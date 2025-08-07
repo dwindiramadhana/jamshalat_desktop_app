@@ -55,11 +55,6 @@
         }
       }
     },
-    "iOS": {
-      "minimumSystemVersion": "13.0",
-      "developmentTeam": "",
-      "bundleVersion": "1"
-    },
     "android": {
       "minSdkVersion": 24
     }
