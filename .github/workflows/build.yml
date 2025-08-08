@@ -202,8 +202,16 @@ jobs:
           mv src-tauri/tauri.conf.android.json src-tauri/tauri.conf.json
           echo "Configuration files switched to Android versions"
 
-      - name: Initialize Android platform
-        run: npm run tauri android init
+      - name: Clean and Initialize Android platform
+        run: |
+          echo "Cleaning any existing Android project to avoid bundle identifier conflicts..."
+          # Remove any existing gen/android folder to ensure clean initialization
+          if [ -d "src-tauri/gen/android" ]; then
+            echo "Removing existing gen/android folder"
+            rm -rf src-tauri/gen/android
+          fi
+          echo "Initializing Android platform with new bundle identifier..."
+          npm run tauri android init
 
       - name: Setup Android signing
         run: |
