@@ -111,12 +111,109 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+  # Android mobile build (separate job to avoid interfering with desktop builds)
+  android-build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Setup Rust for Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Create Android-specific Tauri config
+        run: |
+          # Create a copy of tauri.conf.json with Android-specific settings
+          cp src-tauri/tauri.conf.json src-tauri/tauri.conf.android.json
+          # Update the identifier for Android
+          sed -i 's/"com.jamshalat.desktop"/"com.jamshalat.mobile"/' src-tauri/tauri.conf.android.json
+          # Add Android configuration
+          jq '.bundle.android = {"minSdkVersion": 24}' src-tauri/tauri.conf.android.json > temp.json && mv temp.json src-tauri/tauri.conf.android.json
+          # Add mobile plugins
+          jq '.plugins = {"shell": {"open": true}}' src-tauri/tauri.conf.android.json > temp.json && mv temp.json src-tauri/tauri.conf.android.json
+
+      - name: Create Android-specific Cargo.toml
+        run: |
+          # Create a copy of Cargo.toml with mobile features
+          cp src-tauri/Cargo.toml src-tauri/Cargo.toml.android
+          # Add mobile features and plugins
+          sed -i 's/features = \[\]/features = ["mobile"]/' src-tauri/Cargo.toml.android
+          echo 'tauri-plugin-shell = "2"' >> src-tauri/Cargo.toml.android
+          echo 'tauri-plugin-fs = "2"' >> src-tauri/Cargo.toml.android
+          echo 'tauri-plugin-dialog = "2"' >> src-tauri/Cargo.toml.android
+          # Replace original with Android version temporarily
+          mv src-tauri/Cargo.toml src-tauri/Cargo.toml.original
+          mv src-tauri/Cargo.toml.android src-tauri/Cargo.toml
+          mv src-tauri/tauri.conf.json src-tauri/tauri.conf.json.original
+          mv src-tauri/tauri.conf.android.json src-tauri/tauri.conf.json
+
+      - name: Initialize Android platform
+        run: npm run tauri android init
+
+      - name: Setup Android signing
+        run: |
+          cd src-tauri/gen/android
+          # Create keystore.properties for signing
+          echo "keyAlias=jam-shalat-key" > keystore.properties
+          echo "password=jamshalat2024" >> keystore.properties
+          echo "storeFile=../../../android-release-key.jks" >> keystore.properties
+          # Create a demo keystore (in production, use secrets)
+          keytool -genkey -v -keystore ../../../android-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias jam-shalat-key -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat Mobile, L=Jakarta, ST=Jakarta, C=ID" -storepass jamshalat2024 -keypass jamshalat2024
+
+      - name: Build Android APK
+        run: npm run tauri android build
+
+      - name: Upload Android artifacts
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-android-apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Restore original configs
+        if: always()
+        run: |
+          # Restore original configurations
+          mv src-tauri/Cargo.toml.original src-tauri/Cargo.toml
+          mv src-tauri/tauri.conf.json.original src-tauri/tauri.conf.json
+
   # Combine all artifacts into a single release
   release:
     permissions:
       contents: write
     runs-on: ubuntu-22.04
-    needs: build
+    needs: [build, android-build]
     if: github.event_name == 'release'
     steps:
       - name: Checkout repository
@@ -142,6 +239,7 @@ jobs:
           echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
           echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
+          echo "- **Android**: Download the `.apk` file for sideloading" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -154,6 +252,12 @@ jobs:
           echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Android:" >> release_notes.md
+          echo "1. Download the `.apk` file" >> release_notes.md
+          echo "2. Enable \"Unknown Sources\" in Android Settings → Security" >> release_notes.md
+          echo "3. Install the APK file" >> release_notes.md
+          echo "4. Grant necessary permissions when prompted" >> release_notes.md
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md
