@@ -129,6 +129,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install required tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -150,29 +155,52 @@ jobs:
 
       - name: Create Android-specific Tauri config
         run: |
+          echo "Creating Android-specific Tauri configuration..."
           # Create a copy of tauri.conf.json with Android-specific settings
           cp src-tauri/tauri.conf.json src-tauri/tauri.conf.android.json
+          echo "Original config copied"
+          
           # Update the identifier for Android
           sed -i 's/"com.jamshalat.desktop"/"com.jamshalat.mobile"/' src-tauri/tauri.conf.android.json
+          echo "Bundle identifier updated"
+          
           # Add Android configuration
           jq '.bundle.android = {"minSdkVersion": 24}' src-tauri/tauri.conf.android.json > temp.json && mv temp.json src-tauri/tauri.conf.android.json
+          echo "Android configuration added"
+          
           # Add mobile plugins
           jq '.plugins = {"shell": {"open": true}}' src-tauri/tauri.conf.android.json > temp.json && mv temp.json src-tauri/tauri.conf.android.json
+          echo "Mobile plugins added"
+          
+          # Verify the configuration
+          echo "Final Android config:"
+          cat src-tauri/tauri.conf.android.json
 
       - name: Create Android-specific Cargo.toml
         run: |
+          echo "Creating Android-specific Cargo.toml..."
           # Create a copy of Cargo.toml with mobile features
           cp src-tauri/Cargo.toml src-tauri/Cargo.toml.android
+          echo "Original Cargo.toml copied"
+          
           # Add mobile features and plugins
           sed -i 's/features = \[\]/features = ["mobile"]/' src-tauri/Cargo.toml.android
           echo 'tauri-plugin-shell = "2"' >> src-tauri/Cargo.toml.android
           echo 'tauri-plugin-fs = "2"' >> src-tauri/Cargo.toml.android
           echo 'tauri-plugin-dialog = "2"' >> src-tauri/Cargo.toml.android
+          echo "Mobile features and plugins added"
+          
+          # Show the modified Cargo.toml
+          echo "Modified Cargo.toml:"
+          cat src-tauri/Cargo.toml.android
+          
           # Replace original with Android version temporarily
+          echo "Backing up original files and switching to Android configs..."
           mv src-tauri/Cargo.toml src-tauri/Cargo.toml.original
           mv src-tauri/Cargo.toml.android src-tauri/Cargo.toml
           mv src-tauri/tauri.conf.json src-tauri/tauri.conf.json.original
           mv src-tauri/tauri.conf.android.json src-tauri/tauri.conf.json
+          echo "Configuration files switched to Android versions"
 
       - name: Initialize Android platform
         run: npm run tauri android init
@@ -180,12 +208,24 @@ jobs:
       - name: Setup Android signing
         run: |
           cd src-tauri/gen/android
+          echo "Setting up Android signing configuration..."
+          
+          # Clean up any existing keystore to avoid alias conflicts
+          if [ -f "../../../android-release-key.jks" ]; then
+            echo "Removing existing keystore to avoid alias conflicts"
+            rm ../../../android-release-key.jks
+          fi
+          
           # Create keystore.properties for signing
           echo "keyAlias=jam-shalat-key" > keystore.properties
           echo "password=jamshalat2024" >> keystore.properties
           echo "storeFile=../../../android-release-key.jks" >> keystore.properties
+          echo "Keystore properties created"
+          
           # Create a demo keystore (in production, use secrets)
+          echo "Creating new Android keystore..."
           keytool -genkey -v -keystore ../../../android-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias jam-shalat-key -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat Mobile, L=Jakarta, ST=Jakarta, C=ID" -storepass jamshalat2024 -keypass jamshalat2024
+          echo "Android keystore created successfully"
 
       - name: Build Android APK
         run: npm run tauri android build
