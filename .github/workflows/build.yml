@@ -129,6 +129,24 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Setup NDK_HOME environment
+        run: |
+          echo "Setting up NDK_HOME environment variable..."
+          # Debug: Show what's in the NDK directory
+          echo "Available NDK versions:"
+          ls -la $ANDROID_HOME/ndk/ || echo "NDK directory not found"
+          
+          # Find the actual NDK folder (it's usually a version number like 27.3.13750724)
+          NDK_VERSION=$(ls $ANDROID_HOME/ndk/ | head -1)
+          if [ -n "$NDK_VERSION" ]; then
+            export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+            echo "NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+            echo "✅ NDK_HOME set to: $NDK_HOME"
+          else
+            echo "❌ ERROR: No NDK version found in $ANDROID_HOME/ndk/"
+            exit 1
+          fi
+
       - name: Install required tools
         run: |
           sudo apt-get update
@@ -211,6 +229,7 @@ jobs:
             rm -rf src-tauri/gen/android
           fi
           echo "Initializing Android platform with new bundle identifier..."
+          echo "NDK_HOME is set to: $NDK_HOME"
           npm run tauri android init
           
           # Verify Android project was created successfully
