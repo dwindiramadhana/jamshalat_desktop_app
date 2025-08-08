@@ -212,9 +212,29 @@ jobs:
           fi
           echo "Initializing Android platform with new bundle identifier..."
           npm run tauri android init
+          
+          # Verify Android project was created successfully
+          if [ -d "src-tauri/gen/android" ]; then
+            echo "✅ Android project initialized successfully"
+            echo "Android project structure:"
+            ls -la src-tauri/gen/android/
+          else
+            echo "❌ ERROR: Android project was not created!"
+            echo "Current src-tauri/gen contents:"
+            ls -la src-tauri/gen/ || echo "src-tauri/gen directory does not exist"
+            exit 1
+          fi
 
       - name: Setup Android signing
         run: |
+          # Verify Android project directory exists before proceeding
+          if [ ! -d "src-tauri/gen/android" ]; then
+            echo "❌ ERROR: src-tauri/gen/android directory does not exist!"
+            echo "Android initialization may have failed. Current directory structure:"
+            find src-tauri -type d -name "*android*" || echo "No android directories found"
+            exit 1
+          fi
+          
           cd src-tauri/gen/android
           echo "Setting up Android signing configuration..."
           
