@@ -10,7 +10,7 @@ import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 const isAndroid = () => {
   if (typeof window !== 'undefined') {
     return /Android/i.test(window.navigator.userAgent) || 
-           window.__TAURI_METADATA__?.currentPlatform === 'android';
+           (window as any).__TAURI_METADATA__?.currentPlatform === 'android';
   }
   return false;
 };
