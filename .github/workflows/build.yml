@@ -277,39 +277,7 @@ jobs:
           
           echo "✅ Keystore and properties configured for APK signing"
           
-          # Configure Android app for fullscreen (hide system bars)
-          echo "Configuring Android app for fullscreen mode..."
-          
-          # Update AndroidManifest.xml for fullscreen
-          MANIFEST_FILE="app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST_FILE" ]; then
-            echo "Updating AndroidManifest.xml for fullscreen..."
-            
-            # Add fullscreen theme
-            sed -i 's/android:theme="@style\/Theme\.AppCompat\.Light\.NoActionBar"/android:theme="@style\/Theme.AppCompat.Light.NoActionBar.Fullscreen"/' "$MANIFEST_FILE"
-            
-            echo "✅ AndroidManifest.xml updated for fullscreen"
-          else
-            echo "❌ AndroidManifest.xml not found"
-          fi
-          
-          # Create custom fullscreen theme using echo commands
-          STYLES_DIR="app/src/main/res/values"
-          mkdir -p "$STYLES_DIR"
-          
-          echo "Creating fullscreen theme..."
-          echo '<?xml version="1.0" encoding="utf-8"?>' > "$STYLES_DIR/styles.xml"
-          echo '<resources>' >> "$STYLES_DIR/styles.xml"
-          echo '    <style name="Theme.AppCompat.Light.NoActionBar.Fullscreen" parent="Theme.AppCompat.Light.NoActionBar">' >> "$STYLES_DIR/styles.xml"
-          echo '        <item name="android:windowFullscreen">true</item>' >> "$STYLES_DIR/styles.xml"
-          echo '        <item name="android:windowContentOverlay">@null</item>' >> "$STYLES_DIR/styles.xml"
-          echo '        <item name="android:windowTranslucentStatus">true</item>' >> "$STYLES_DIR/styles.xml"
-          echo '        <item name="android:windowTranslucentNavigation">true</item>' >> "$STYLES_DIR/styles.xml"
-          echo '        <item name="android:fitsSystemWindows">false</item>' >> "$STYLES_DIR/styles.xml"
-          echo '    </style>' >> "$STYLES_DIR/styles.xml"
-          echo '</resources>' >> "$STYLES_DIR/styles.xml"
-          
-          echo "✅ Custom fullscreen theme created"
+          echo "✅ Android platform configured (using conditional padding instead of fullscreen)"
           
           # Generate Android icons from Icon.png
           echo "Generating Android icons from public/Icon.png..."
