@@ -264,18 +264,56 @@ jobs:
           fi
           
           # Create keystore.properties for signing
-          echo "keyAlias=jam-shalat-key" > keystore.properties
-          echo "password=jamshalat2024" >> keystore.properties
-          echo "storeFile=../../../android-release-key.jks" >> keystore.properties
+          echo "storeFile=../../../android-release-key.jks" > keystore.properties
+          echo "storePassword=jamshalat2024" >> keystore.properties
+          echo "keyAlias=jam-shalat-key" >> keystore.properties
+          echo "keyPassword=jamshalat2024" >> keystore.properties
           echo "Keystore properties created"
           
           # Create a demo keystore (in production, use secrets)
           echo "Creating new Android keystore..."
           keytool -genkey -v -keystore ../../../android-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias jam-shalat-key -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat Mobile, L=Jakarta, ST=Jakarta, C=ID" -storepass jamshalat2024 -keypass jamshalat2024
           echo "Android keystore created successfully"
+          
+          echo "✅ Keystore and properties configured for APK signing"
 
       - name: Build Android APK
         run: npm run tauri android build
+
+      - name: Sign Android APK
+        run: |
+          cd src-tauri/gen/android
+          echo "Signing the generated APK..."
+          
+          # Find the unsigned APK
+          UNSIGNED_APK=$(find app/build/outputs/apk -name "*unsigned*.apk" | head -1)
+          if [ -n "$UNSIGNED_APK" ]; then
+            echo "Found unsigned APK: $UNSIGNED_APK"
+            
+            # Create signed APK name
+            SIGNED_APK="${UNSIGNED_APK/unsigned/signed}"
+            
+            # Sign the APK using jarsigner
+            echo "Signing APK with jarsigner..."
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+              -keystore ../../../android-release-key.jks \
+              -storepass jamshalat2024 \
+              -keypass jamshalat2024 \
+              "$UNSIGNED_APK" jam-shalat-key
+            
+            # Rename to signed version
+            mv "$UNSIGNED_APK" "$SIGNED_APK"
+            
+            echo "✅ APK signed successfully: $SIGNED_APK"
+            
+            # Verify the signature
+            jarsigner -verify -verbose -certs "$SIGNED_APK"
+            
+          else
+            echo "❌ No unsigned APK found"
+            echo "Available APK files:"
+            find app/build/outputs/apk -name "*.apk" || echo "No APK files found"
+          fi
 
       - name: Upload Android artifacts
         if: github.event_name != 'release'
