@@ -276,6 +276,69 @@ jobs:
           echo "Android keystore created successfully"
           
           echo "✅ Keystore and properties configured for APK signing"
+          
+          # Configure Android app for fullscreen (hide system bars)
+          echo "Configuring Android app for fullscreen mode..."
+          
+          # Update AndroidManifest.xml for fullscreen
+          MANIFEST_FILE="app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST_FILE" ]; then
+            echo "Updating AndroidManifest.xml for fullscreen..."
+            
+            # Add fullscreen theme
+            sed -i 's/android:theme="@style\/Theme\.AppCompat\.Light\.NoActionBar"/android:theme="@style\/Theme.AppCompat.Light.NoActionBar.Fullscreen"/' "$MANIFEST_FILE"
+            
+            echo "✅ AndroidManifest.xml updated for fullscreen"
+          else
+            echo "❌ AndroidManifest.xml not found"
+          fi
+          
+          # Create custom fullscreen theme using echo commands
+          STYLES_DIR="app/src/main/res/values"
+          mkdir -p "$STYLES_DIR"
+          
+          echo "Creating fullscreen theme..."
+          echo '<?xml version="1.0" encoding="utf-8"?>' > "$STYLES_DIR/styles.xml"
+          echo '<resources>' >> "$STYLES_DIR/styles.xml"
+          echo '    <style name="Theme.AppCompat.Light.NoActionBar.Fullscreen" parent="Theme.AppCompat.Light.NoActionBar">' >> "$STYLES_DIR/styles.xml"
+          echo '        <item name="android:windowFullscreen">true</item>' >> "$STYLES_DIR/styles.xml"
+          echo '        <item name="android:windowContentOverlay">@null</item>' >> "$STYLES_DIR/styles.xml"
+          echo '        <item name="android:windowTranslucentStatus">true</item>' >> "$STYLES_DIR/styles.xml"
+          echo '        <item name="android:windowTranslucentNavigation">true</item>' >> "$STYLES_DIR/styles.xml"
+          echo '        <item name="android:fitsSystemWindows">false</item>' >> "$STYLES_DIR/styles.xml"
+          echo '    </style>' >> "$STYLES_DIR/styles.xml"
+          echo '</resources>' >> "$STYLES_DIR/styles.xml"
+          
+          echo "✅ Custom fullscreen theme created"
+          
+          # Generate Android icons from Icon.png
+          echo "Generating Android icons from public/Icon.png..."
+          if [ -f "../../../public/Icon.png" ]; then
+            # Create Android icon directories
+            mkdir -p "app/src/main/res/mipmap-mdpi"
+            mkdir -p "app/src/main/res/mipmap-hdpi"
+            mkdir -p "app/src/main/res/mipmap-xhdpi"
+            mkdir -p "app/src/main/res/mipmap-xxhdpi"
+            mkdir -p "app/src/main/res/mipmap-xxxhdpi"
+            
+            # Check if ImageMagick convert is available
+            if command -v convert &> /dev/null; then
+              echo "Using ImageMagick to generate Android icons..."
+              
+              # Generate different density icons
+              convert "../../../public/Icon.png" -resize 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+              
+              echo "✅ Android icons generated successfully"
+            else
+              echo "⚠️ ImageMagick not available, using default icons"
+            fi
+          else
+            echo "⚠️ public/Icon.png not found, using default icons"
+          fi
 
       - name: Build Android APK
         run: npm run tauri android build
