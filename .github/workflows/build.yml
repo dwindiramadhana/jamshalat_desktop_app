@@ -297,13 +297,36 @@ jobs:
             echo "Aligning APK..."
             ALIGNED_APK="${UNSIGNED_APK/unsigned/aligned}"
             
-            # Find the build-tools directory
-            BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools -name "*" -type d | head -1)
+            # Find the build-tools version directory (not the parent directory)
+            echo "Available build-tools versions:"
+            ls -la $ANDROID_HOME/build-tools/
+            
+            BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools -maxdepth 1 -type d -name "*.*.*" | head -1)
+            if [ -z "$BUILD_TOOLS_DIR" ]; then
+              # Fallback: find any subdirectory that contains zipalign
+              BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools -name "zipalign" -type f | head -1 | xargs dirname)
+            fi
             echo "Using build-tools: $BUILD_TOOLS_DIR"
+            
+            # Verify zipalign exists
+            if [ ! -f "$BUILD_TOOLS_DIR/zipalign" ]; then
+              echo "❌ zipalign not found in $BUILD_TOOLS_DIR"
+              echo "Searching for zipalign in all build-tools directories..."
+              find $ANDROID_HOME/build-tools -name "zipalign" -type f
+              exit 1
+            fi
             
             # Align the APK
             echo "Running: $BUILD_TOOLS_DIR/zipalign -v 4 $UNSIGNED_APK $ALIGNED_APK"
             $BUILD_TOOLS_DIR/zipalign -v 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+            
+            # Verify apksigner exists
+            if [ ! -f "$BUILD_TOOLS_DIR/apksigner" ]; then
+              echo "❌ apksigner not found in $BUILD_TOOLS_DIR"
+              echo "Searching for apksigner in all build-tools directories..."
+              find $ANDROID_HOME/build-tools -name "apksigner" -type f
+              exit 1
+            fi
             
             # Sign the APK using apksigner (modern v2/v3 signing)
             echo "Signing APK with apksigner (v2/v3 signature schemes)..."
