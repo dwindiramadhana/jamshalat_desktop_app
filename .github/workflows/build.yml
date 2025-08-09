@@ -296,11 +296,19 @@ jobs:
             # First, align the APK (required for modern signing)
             echo "Aligning APK..."
             ALIGNED_APK="${UNSIGNED_APK/unsigned/aligned}"
-            $ANDROID_HOME/build-tools/*/zipalign -v 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+            
+            # Find the build-tools directory
+            BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools -name "*" -type d | head -1)
+            echo "Using build-tools: $BUILD_TOOLS_DIR"
+            
+            # Align the APK
+            echo "Running: $BUILD_TOOLS_DIR/zipalign -v 4 $UNSIGNED_APK $ALIGNED_APK"
+            $BUILD_TOOLS_DIR/zipalign -v 4 "$UNSIGNED_APK" "$ALIGNED_APK"
             
             # Sign the APK using apksigner (modern v2/v3 signing)
             echo "Signing APK with apksigner (v2/v3 signature schemes)..."
-            $ANDROID_HOME/build-tools/*/apksigner sign \
+            echo "Running: $BUILD_TOOLS_DIR/apksigner sign ..."
+            $BUILD_TOOLS_DIR/apksigner sign \
               --ks ../../../android-release-key.jks \
               --ks-key-alias jam-shalat-key \
               --ks-pass pass:jamshalat2024 \
@@ -315,7 +323,8 @@ jobs:
             
             # Verify the signature with apksigner
             echo "Verifying APK signature..."
-            $ANDROID_HOME/build-tools/*/apksigner verify --verbose "$SIGNED_APK"
+            echo "Running: $BUILD_TOOLS_DIR/apksigner verify --verbose $SIGNED_APK"
+            $BUILD_TOOLS_DIR/apksigner verify --verbose "$SIGNED_APK"
             
             # Clean up temporary files
             rm -f "$ALIGNED_APK"
