@@ -280,10 +280,10 @@ jobs:
       - name: Build Android APK
         run: npm run tauri android build
 
-      - name: Sign Android APK
+      - name: Sign Android APK with modern signing
         run: |
           cd src-tauri/gen/android
-          echo "Signing the generated APK..."
+          echo "Signing the generated APK with modern v2/v3 signature schemes..."
           
           # Find the unsigned APK
           UNSIGNED_APK=$(find app/build/outputs/apk -name "*unsigned*.apk" | head -1)
@@ -293,21 +293,36 @@ jobs:
             # Create signed APK name
             SIGNED_APK="${UNSIGNED_APK/unsigned/signed}"
             
-            # Sign the APK using jarsigner
-            echo "Signing APK with jarsigner..."
-            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
-              -keystore ../../../android-release-key.jks \
-              -storepass jamshalat2024 \
-              -keypass jamshalat2024 \
-              "$UNSIGNED_APK" jam-shalat-key
+            # First, align the APK (required for modern signing)
+            echo "Aligning APK..."
+            ALIGNED_APK="${UNSIGNED_APK/unsigned/aligned}"
+            $ANDROID_HOME/build-tools/*/zipalign -v 4 "$UNSIGNED_APK" "$ALIGNED_APK"
             
-            # Rename to signed version
-            mv "$UNSIGNED_APK" "$SIGNED_APK"
+            # Sign the APK using apksigner (modern v2/v3 signing)
+            echo "Signing APK with apksigner (v2/v3 signature schemes)..."
+            $ANDROID_HOME/build-tools/*/apksigner sign \
+              --ks ../../../android-release-key.jks \
+              --ks-key-alias jam-shalat-key \
+              --ks-pass pass:jamshalat2024 \
+              --key-pass pass:jamshalat2024 \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              --out "$SIGNED_APK" \
+              "$ALIGNED_APK"
             
-            echo "✅ APK signed successfully: $SIGNED_APK"
+            echo "✅ APK signed successfully with v1/v2/v3 schemes: $SIGNED_APK"
             
-            # Verify the signature
-            jarsigner -verify -verbose -certs "$SIGNED_APK"
+            # Verify the signature with apksigner
+            echo "Verifying APK signature..."
+            $ANDROID_HOME/build-tools/*/apksigner verify --verbose "$SIGNED_APK"
+            
+            # Clean up temporary files
+            rm -f "$ALIGNED_APK"
+            
+            # Show APK info
+            echo "APK Information:"
+            ls -la "$SIGNED_APK"
             
           else
             echo "❌ No unsigned APK found"
