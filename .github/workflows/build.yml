@@ -201,12 +201,12 @@ jobs:
           cp src-tauri/Cargo.toml src-tauri/Cargo.toml.android
           echo "Original Cargo.toml copied"
           
-          # Add mobile features and plugins
-          sed -i 's/features = \[\]/features = ["mobile"]/' src-tauri/Cargo.toml.android
+          # Keep original Tauri features (no mobile feature exists in 2.7.0)
+          # sed -i 's/features = \[\]/features = ["mobile"]/' src-tauri/Cargo.toml.android
           echo 'tauri-plugin-shell = "2"' >> src-tauri/Cargo.toml.android
           echo 'tauri-plugin-fs = "2"' >> src-tauri/Cargo.toml.android
           echo 'tauri-plugin-dialog = "2"' >> src-tauri/Cargo.toml.android
-          echo "Mobile features and plugins added"
+          echo "Mobile plugins added (no Tauri mobile feature needed for 2.7.0)"
           
           # Show the modified Cargo.toml
           echo "Modified Cargo.toml:"
