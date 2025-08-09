@@ -111,12 +111,312 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+  # Android mobile build (separate job to avoid interfering with desktop builds)
+  android-build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup NDK_HOME environment
+        run: |
+          echo "Setting up NDK_HOME environment variable..."
+          # Debug: Show what's in the NDK directory
+          echo "Available NDK versions:"
+          ls -la $ANDROID_HOME/ndk/ || echo "NDK directory not found"
+          
+          # Find the actual NDK folder (it's usually a version number like 27.3.13750724)
+          NDK_VERSION=$(ls $ANDROID_HOME/ndk/ | head -1)
+          if [ -n "$NDK_VERSION" ]; then
+            export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+            echo "NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+            echo "✅ NDK_HOME set to: $NDK_HOME"
+          else
+            echo "❌ ERROR: No NDK version found in $ANDROID_HOME/ndk/"
+            exit 1
+          fi
+
+      - name: Install required tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Setup Rust for Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Create Android-specific Tauri config
+        run: |
+          echo "Creating Android-specific Tauri configuration..."
+          # Create a copy of tauri.conf.json with Android-specific settings
+          cp src-tauri/tauri.conf.json src-tauri/tauri.conf.android.json
+          echo "Original config copied"
+          
+          # Update the identifier for Android
+          sed -i 's/"com.jamshalat.desktop"/"com.jamshalat.mobile"/' src-tauri/tauri.conf.android.json
+          echo "Bundle identifier updated"
+          
+          # Add Android configuration
+          jq '.bundle.android = {"minSdkVersion": 24}' src-tauri/tauri.conf.android.json > temp.json && mv temp.json src-tauri/tauri.conf.android.json
+          echo "Android configuration added"
+          
+          # Add mobile plugins
+          jq '.plugins = {"shell": {"open": true}}' src-tauri/tauri.conf.android.json > temp.json && mv temp.json src-tauri/tauri.conf.android.json
+          echo "Mobile plugins added"
+          
+          # Verify the configuration
+          echo "Final Android config:"
+          cat src-tauri/tauri.conf.android.json
+
+      - name: Create Android-specific Cargo.toml
+        run: |
+          echo "Creating Android-specific Cargo.toml..."
+          # Create a copy of Cargo.toml with mobile features
+          cp src-tauri/Cargo.toml src-tauri/Cargo.toml.android
+          echo "Original Cargo.toml copied"
+          
+          # Keep original Tauri features (no mobile feature exists in 2.7.0)
+          # sed -i 's/features = \[\]/features = ["mobile"]/' src-tauri/Cargo.toml.android
+          echo 'tauri-plugin-shell = "2"' >> src-tauri/Cargo.toml.android
+          echo 'tauri-plugin-fs = "2"' >> src-tauri/Cargo.toml.android
+          echo 'tauri-plugin-dialog = "2"' >> src-tauri/Cargo.toml.android
+          echo "Mobile plugins added (no Tauri mobile feature needed for 2.7.0)"
+          
+          # Show the modified Cargo.toml
+          echo "Modified Cargo.toml:"
+          cat src-tauri/Cargo.toml.android
+          
+          # Replace original with Android version temporarily
+          echo "Backing up original files and switching to Android configs..."
+          mv src-tauri/Cargo.toml src-tauri/Cargo.toml.original
+          mv src-tauri/Cargo.toml.android src-tauri/Cargo.toml
+          mv src-tauri/tauri.conf.json src-tauri/tauri.conf.json.original
+          mv src-tauri/tauri.conf.android.json src-tauri/tauri.conf.json
+          echo "Configuration files switched to Android versions"
+
+      - name: Clean and Initialize Android platform
+        run: |
+          echo "Cleaning any existing Android project to avoid bundle identifier conflicts..."
+          # Remove any existing gen/android folder to ensure clean initialization
+          if [ -d "src-tauri/gen/android" ]; then
+            echo "Removing existing gen/android folder"
+            rm -rf src-tauri/gen/android
+          fi
+          echo "Initializing Android platform with new bundle identifier..."
+          echo "NDK_HOME is set to: $NDK_HOME"
+          npm run tauri android init
+          
+          # Verify Android project was created successfully
+          if [ -d "src-tauri/gen/android" ]; then
+            echo "✅ Android project initialized successfully"
+            echo "Android project structure:"
+            ls -la src-tauri/gen/android/
+          else
+            echo "❌ ERROR: Android project was not created!"
+            echo "Current src-tauri/gen contents:"
+            ls -la src-tauri/gen/ || echo "src-tauri/gen directory does not exist"
+            exit 1
+          fi
+
+      - name: Setup Android signing
+        run: |
+          # Verify Android project directory exists before proceeding
+          if [ ! -d "src-tauri/gen/android" ]; then
+            echo "❌ ERROR: src-tauri/gen/android directory does not exist!"
+            echo "Android initialization may have failed. Current directory structure:"
+            find src-tauri -type d -name "*android*" || echo "No android directories found"
+            exit 1
+          fi
+          
+          cd src-tauri/gen/android
+          echo "Setting up Android signing configuration..."
+          
+          # Clean up any existing keystore to avoid alias conflicts
+          if [ -f "../../../android-release-key.jks" ]; then
+            echo "Removing existing keystore to avoid alias conflicts"
+            rm ../../../android-release-key.jks
+          fi
+          
+          # Create keystore.properties for signing
+          echo "storeFile=../../../android-release-key.jks" > keystore.properties
+          echo "storePassword=jamshalat2024" >> keystore.properties
+          echo "keyAlias=jam-shalat-key" >> keystore.properties
+          echo "keyPassword=jamshalat2024" >> keystore.properties
+          echo "Keystore properties created"
+          
+          # Create a demo keystore (in production, use secrets)
+          echo "Creating new Android keystore..."
+          keytool -genkey -v -keystore ../../../android-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias jam-shalat-key -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat Mobile, L=Jakarta, ST=Jakarta, C=ID" -storepass jamshalat2024 -keypass jamshalat2024
+          echo "Android keystore created successfully"
+          
+          echo "✅ Keystore and properties configured for APK signing"
+          
+          echo "✅ Android platform configured (using conditional padding instead of fullscreen)"
+          
+          # Generate Android icons from Icon.png
+          echo "Generating Android icons from public/Icon.png..."
+          if [ -f "../../../public/Icon.png" ]; then
+            # Create Android icon directories
+            mkdir -p "app/src/main/res/mipmap-mdpi"
+            mkdir -p "app/src/main/res/mipmap-hdpi"
+            mkdir -p "app/src/main/res/mipmap-xhdpi"
+            mkdir -p "app/src/main/res/mipmap-xxhdpi"
+            mkdir -p "app/src/main/res/mipmap-xxxhdpi"
+            
+            # Check if ImageMagick convert is available
+            if command -v convert &> /dev/null; then
+              echo "Using ImageMagick to generate Android icons..."
+              
+              # Generate different density icons
+              convert "../../../public/Icon.png" -resize 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
+              convert "../../../public/Icon.png" -resize 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+              
+              echo "✅ Android icons generated successfully"
+            else
+              echo "⚠️ ImageMagick not available, using default icons"
+            fi
+          else
+            echo "⚠️ public/Icon.png not found, using default icons"
+          fi
+
+      - name: Build Android APK
+        run: npm run tauri android build
+
+      - name: Sign Android APK with modern signing
+        run: |
+          cd src-tauri/gen/android
+          echo "Signing the generated APK with modern v2/v3 signature schemes..."
+          
+          # Find the unsigned APK
+          UNSIGNED_APK=$(find app/build/outputs/apk -name "*unsigned*.apk" | head -1)
+          if [ -n "$UNSIGNED_APK" ]; then
+            echo "Found unsigned APK: $UNSIGNED_APK"
+            
+            # Create signed APK name
+            SIGNED_APK="${UNSIGNED_APK/unsigned/signed}"
+            
+            # First, align the APK (required for modern signing)
+            echo "Aligning APK..."
+            ALIGNED_APK="${UNSIGNED_APK/unsigned/aligned}"
+            
+            # Find the build-tools version directory (not the parent directory)
+            echo "Available build-tools versions:"
+            ls -la $ANDROID_HOME/build-tools/
+            
+            BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools -maxdepth 1 -type d -name "*.*.*" | head -1)
+            if [ -z "$BUILD_TOOLS_DIR" ]; then
+              # Fallback: find any subdirectory that contains zipalign
+              BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools -name "zipalign" -type f | head -1 | xargs dirname)
+            fi
+            echo "Using build-tools: $BUILD_TOOLS_DIR"
+            
+            # Verify zipalign exists
+            if [ ! -f "$BUILD_TOOLS_DIR/zipalign" ]; then
+              echo "❌ zipalign not found in $BUILD_TOOLS_DIR"
+              echo "Searching for zipalign in all build-tools directories..."
+              find $ANDROID_HOME/build-tools -name "zipalign" -type f
+              exit 1
+            fi
+            
+            # Align the APK
+            echo "Running: $BUILD_TOOLS_DIR/zipalign -v 4 $UNSIGNED_APK $ALIGNED_APK"
+            $BUILD_TOOLS_DIR/zipalign -v 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+            
+            # Verify apksigner exists
+            if [ ! -f "$BUILD_TOOLS_DIR/apksigner" ]; then
+              echo "❌ apksigner not found in $BUILD_TOOLS_DIR"
+              echo "Searching for apksigner in all build-tools directories..."
+              find $ANDROID_HOME/build-tools -name "apksigner" -type f
+              exit 1
+            fi
+            
+            # Sign the APK using apksigner (modern v2/v3 signing)
+            echo "Signing APK with apksigner (v2/v3 signature schemes)..."
+            echo "Running: $BUILD_TOOLS_DIR/apksigner sign ..."
+            $BUILD_TOOLS_DIR/apksigner sign \
+              --ks ../../../android-release-key.jks \
+              --ks-key-alias jam-shalat-key \
+              --ks-pass pass:jamshalat2024 \
+              --key-pass pass:jamshalat2024 \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              --out "$SIGNED_APK" \
+              "$ALIGNED_APK"
+            
+            echo "✅ APK signed successfully with v1/v2/v3 schemes: $SIGNED_APK"
+            
+            # Verify the signature with apksigner
+            echo "Verifying APK signature..."
+            echo "Running: $BUILD_TOOLS_DIR/apksigner verify --verbose $SIGNED_APK"
+            $BUILD_TOOLS_DIR/apksigner verify --verbose "$SIGNED_APK"
+            
+            # Clean up temporary files
+            rm -f "$ALIGNED_APK"
+            
+            # Show APK info
+            echo "APK Information:"
+            ls -la "$SIGNED_APK"
+            
+          else
+            echo "❌ No unsigned APK found"
+            echo "Available APK files:"
+            find app/build/outputs/apk -name "*.apk" || echo "No APK files found"
+          fi
+
+      - name: Upload Android artifacts
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-android-apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Restore original configs
+        if: always()
+        run: |
+          # Restore original configurations
+          mv src-tauri/Cargo.toml.original src-tauri/Cargo.toml
+          mv src-tauri/tauri.conf.json.original src-tauri/tauri.conf.json
+
   # Combine all artifacts into a single release
   release:
     permissions:
       contents: write
     runs-on: ubuntu-22.04
-    needs: build
+    needs: [build, android-build]
     if: github.event_name == 'release'
     steps:
       - name: Checkout repository
@@ -142,6 +442,7 @@ jobs:
           echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
           echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
+          echo "- **Android**: Download the `.apk` file for sideloading" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -154,6 +455,12 @@ jobs:
           echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Android:" >> release_notes.md
+          echo "1. Download the `.apk` file" >> release_notes.md
+          echo "2. Enable \"Unknown Sources\" in Android Settings → Security" >> release_notes.md
+          echo "3. Install the APK file" >> release_notes.md
+          echo "4. Grant necessary permissions when prompted" >> release_notes.md
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md

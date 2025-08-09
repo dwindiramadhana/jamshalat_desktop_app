@@ -6,6 +6,15 @@ import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
+// Platform detection for Android-specific styling
+const isAndroid = () => {
+  if (typeof window !== 'undefined') {
+    return /Android/i.test(window.navigator.userAgent) || 
+           (window as any).__TAURI_METADATA__?.currentPlatform === 'android';
+  }
+  return false;
+};
+
 // Define the full settings type that includes all possible settings
 type AppSettings = Settings & {
   showNextPrayerLabel: boolean;
@@ -401,7 +410,7 @@ function App() {
         {/* Settings Button */}
         <button
           onClick={() => setIsSettingsOpen(true)}
-          className={`fixed top-4 right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${
+          className={`fixed ${isAndroid() ? 'top-12' : 'top-4'} right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${
             isDarkMode 
               ? 'bg-gray-800 bg-opacity-75 hover:bg-gray-700/90 text-gray-200' 
               : `bg-white bg-opacity-75 hover:bg-white/90 ${themeColors.text}`
@@ -588,7 +597,7 @@ function App() {
 
       {/* Photo Credit - Only show for Unsplash images */}
       {currentImage?.author && settings.background.type === 'auto' && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20">
+        <div className={`fixed ${isAndroid() ? 'bottom-6' : 'bottom-0'} left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20`}>
           <span>Photo by </span>
           <a 
             href={currentImage.authorUrl || `https://unsplash.com/@${currentImage.authorUsername}?utm_source=JamShalatApp&utm_medium=referral`}
