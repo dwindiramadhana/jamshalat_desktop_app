@@ -149,52 +149,36 @@ jobs:
           cd android
           echo "Setting up Android signing configuration..."
           
-          # Create keystore if it doesn't exist
-          if [ ! -f "../android-release-key.jks" ]; then
-            echo "Creating new Android keystore..."
-            keytool -genkey -v -keystore ../android-release-key.jks \
+          KEYSTORE_PATH="../android-release-key.jks"
+          KEYSTORE_PASSWORD="${ANDROID_KEYSTORE_PASSWORD:-jamshalat2024}"
+          KEY_ALIAS="${ANDROID_KEY_ALIAS:-jam-shalat-key}"
+          KEY_PASSWORD="${ANDROID_KEY_PASSWORD:-jamshalat2024}"
+
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "Using keystore from ANDROID_KEYSTORE_BASE64 secret..."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          elif [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Creating new Android keystore (no secret provided)..."
+            keytool -genkey -v -keystore "$KEYSTORE_PATH" \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -alias jam-shalat-key \
+              -alias "$KEY_ALIAS" \
               -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat Mobile, L=Jakarta, ST=Jakarta, C=ID" \
-              -storepass jamshalat2024 -keypass jamshalat2024
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD"
             echo "Android keystore created successfully"
           fi
           
           # Create keystore.properties for Gradle signing
           echo "storeFile=../../android-release-key.jks" > keystore.properties
-          echo "storePassword=jamshalat2024" >> keystore.properties
-          echo "keyAlias=jam-shalat-key" >> keystore.properties
-          echo "keyPassword=jamshalat2024" >> keystore.properties
+          echo "storePassword=$KEYSTORE_PASSWORD" >> keystore.properties
+          echo "keyAlias=$KEY_ALIAS" >> keystore.properties
+          echo "keyPassword=$KEY_PASSWORD" >> keystore.properties
           echo "✅ Keystore properties created"
-          
-          # Create signing config file to be appended to build.gradle
-          echo "" >> app/build.gradle
-          echo "// Signing configuration for release builds" >> app/build.gradle
-          echo "def keystorePropertiesFile = rootProject.file(\"keystore.properties\")" >> app/build.gradle
-          echo "def keystoreProperties = new Properties()" >> app/build.gradle
-          echo "if (keystorePropertiesFile.exists()) {" >> app/build.gradle
-          echo "    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))" >> app/build.gradle
-          echo "}" >> app/build.gradle
-          echo "" >> app/build.gradle
-          echo "android.signingConfigs {" >> app/build.gradle
-          echo "    release {" >> app/build.gradle
-          echo "        if (keystorePropertiesFile.exists()) {" >> app/build.gradle
-          echo "            keyAlias keystoreProperties['keyAlias']" >> app/build.gradle
-          echo "            keyPassword keystoreProperties['keyPassword']" >> app/build.gradle
-          echo "            storeFile file(keystoreProperties['storeFile'])" >> app/build.gradle
-          echo "            storePassword keystoreProperties['storePassword']" >> app/build.gradle
-          echo "        }" >> app/build.gradle
-          echo "    }" >> app/build.gradle
-          echo "}" >> app/build.gradle
-          echo "" >> app/build.gradle
-          echo "android.buildTypes.release.signingConfig = android.signingConfigs.release" >> app/build.gradle
-          echo "✅ Signing config added to build.gradle"
 
       - name: Generate Android icons
         run: |
           cd android
-          echo "Generating Android icons from public/Icon.png..."
-          if [ -f "../public/Icon.png" ]; then
+          echo "Generating Android icons from src-tauri/icons/icon.png..."
+          if [ -f "../src-tauri/icons/icon.png" ]; then
             # Install ImageMagick if not available
             sudo apt-get update && sudo apt-get install -y imagemagick
             
@@ -206,22 +190,29 @@ jobs:
             mkdir -p "app/src/main/res/mipmap-xxxhdpi"
             
             # Generate different density icons
-            convert "../public/Icon.png" -resize 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher.png"
-            convert "../public/Icon.png" -resize 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher.png"
-            convert "../public/Icon.png" -resize 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher.png"
-            convert "../public/Icon.png" -resize 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
-            convert "../public/Icon.png" -resize 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+            convert "../src-tauri/icons/icon.png" -resize 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher.png"
+            convert "../src-tauri/icons/icon.png" -resize 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher.png"
+            convert "../src-tauri/icons/icon.png" -resize 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher.png"
+            convert "../src-tauri/icons/icon.png" -resize 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher.png"
+            convert "../src-tauri/icons/icon.png" -resize 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
             
             # Also create round icons
-            convert "../public/Icon.png" -resize 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher_round.png"
-            convert "../public/Icon.png" -resize 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher_round.png"
-            convert "../public/Icon.png" -resize 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher_round.png"
-            convert "../public/Icon.png" -resize 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png"
-            convert "../public/Icon.png" -resize 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
+            convert "../src-tauri/icons/icon.png" -resize 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher_round.png"
+            convert "../src-tauri/icons/icon.png" -resize 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher_round.png"
+            convert "../src-tauri/icons/icon.png" -resize 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher_round.png"
+            convert "../src-tauri/icons/icon.png" -resize 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png"
+            convert "../src-tauri/icons/icon.png" -resize 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
+
+            # Generate adaptive icon foregrounds
+            convert "../src-tauri/icons/icon.png" -resize 36x36 -background transparent -gravity center -extent 48x48 "app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png"
+            convert "../src-tauri/icons/icon.png" -resize 54x54 -background transparent -gravity center -extent 72x72 "app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png"
+            convert "../src-tauri/icons/icon.png" -resize 72x72 -background transparent -gravity center -extent 96x96 "app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png"
+            convert "../src-tauri/icons/icon.png" -resize 108x108 -background transparent -gravity center -extent 144x144 "app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png"
+            convert "../src-tauri/icons/icon.png" -resize 144x144 -background transparent -gravity center -extent 192x192 "app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png"
             
             echo "✅ Android icons generated successfully"
           else
-            echo "⚠️ public/Icon.png not found, using default icons"
+            echo "⚠️ src-tauri/icons/icon.png not found, using default icons"
           fi
 
       - name: Build Android APK

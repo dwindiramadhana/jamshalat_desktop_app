@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Generate Android icons from Icon.png
-# This script generates all required Android icon sizes from the source Icon.png
+# Generate Android icons from the Tauri icon (icon.png)
+# This script generates all required Android icon sizes from the source icon.
 
-SOURCE_ICON="public/Icon.png"
+SOURCE_ICON="src-tauri/icons/icon.png"
 ANDROID_ICONS_DIR="src-tauri/gen/android/app/src/main/res"
 
 echo "🎨 Generating Android icons from $SOURCE_ICON..."
