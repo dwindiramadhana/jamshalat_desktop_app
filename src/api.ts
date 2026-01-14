@@ -1,4 +1,5 @@
 import type { LocationData, PrayerTimesResponse } from './types';
+import { getCityCoordinates } from './data/indonesianCityCoordinates';
 
 const API_BASE_URL = 'https://api.myquran.com/v2/sholat';
 
@@ -20,15 +21,29 @@ export async function fetchLocations(): Promise<LocationData[]> {
       throw new Error(`Failed to fetch locations: ${response.status} ${response.statusText}`);
     }
     
-    const data = await response.json() as { data: LocationData[] };
+    const rawData = await response.json() as { data: Array<{ id: string; lokasi: string }> };
     
-    if (!data.data || !Array.isArray(data.data)) {
+    if (!rawData.data || !Array.isArray(rawData.data)) {
       throw new Error('Invalid data format received from API');
     }
     
+    // Transform data and add coordinates from our mapping
+    const transformedData: LocationData[] = rawData.data.map(item => {
+      const coordinates = getCityCoordinates(item.lokasi);
+      return {
+        id: item.id,
+        name: item.lokasi,
+        lokasi: item.lokasi,
+        koordinat: {
+          lat: coordinates?.lat.toString() || '0',
+          lon: coordinates?.lon.toString() || '0'
+        }
+      };
+    });
+    
     // Simpan ke cache
-    locationsCache = data.data;
-    return data.data;
+    locationsCache = transformedData;
+    return transformedData;
   } catch (error) {
     console.error('Error fetching locations:', error);
     throw new Error('Tidak dapat terhubung ke server. Pastikan koneksi internet Anda stabil.');

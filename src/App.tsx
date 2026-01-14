@@ -4,7 +4,13 @@ import { fetchLocations, fetchPrayerTimes } from './api';
 import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
-import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { 
+  autoDetectLocation, 
+  shouldAttemptLocationDetection, 
+  saveLocationDetectionResult,
+  type LocationDetectionResult 
+} from './services/locationService';
 
 // Platform detection for Android-specific styling
 const isAndroid = () => {
@@ -66,8 +72,18 @@ function App() {
   const [selectedLocation, setSelectedLocation] = useState<FormattedLocation | null>(null);
   const [prayerTimes, setPrayerTimes] = useState<FormattedPrayerTime[]>([]);
   const [loading, setLoading] = useState(true);
+  const [prayerTimesLoading, setPrayerTimesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [locationDetection, setLocationDetection] = useState<{
+    isDetecting: boolean;
+    result: LocationDetectionResult | null;
+  }>({
+    isDetecting: false,
+    result: null
+  });
 
   // Update current time every second
   useEffect(() => {
@@ -233,6 +249,45 @@ function App() {
     }
   };
 
+  // Auto-detect location function - silently applies detected location
+  const attemptLocationDetection = useCallback(async (availableLocations: FormattedLocation[]) => {
+    if (!shouldAttemptLocationDetection()) {
+      console.log('Skipping location detection based on user preferences or recent detection');
+      return false;
+    }
+
+    setLocationDetection(prev => ({ ...prev, isDetecting: true }));
+    
+    try {
+      const result = await autoDetectLocation(availableLocations);
+      setLocationDetection(prev => ({ 
+        ...prev, 
+        isDetecting: false, 
+        result
+      }));
+
+      if (result.success && result.closestCity) {
+        saveLocationDetectionResult(result);
+        console.log(`Location detected and applied: ${result.closestCity.name} via ${result.method}`);
+        // Silently apply the detected location
+        setSelectedLocation(result.closestCity);
+        return result.closestCity;
+      } else {
+        console.log('Location detection failed:', result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Location detection error:', error);
+      setLocationDetection(prev => ({ 
+        ...prev, 
+        isDetecting: false, 
+        result: { success: false, error: 'Location detection failed' }
+      }));
+      return false;
+    }
+  }, []);
+
+
   // Load locations on mount
   useEffect(() => {
     const loadLocations = async () => {
@@ -245,11 +300,26 @@ function App() {
         }));
         setLocations(formattedLocations);
         
-        // Try to load saved location or use first location
+        // Check if we have a saved location
         const savedLocationId = localStorage.getItem('selectedLocationId');
-        const locationToSelect = savedLocationId 
-          ? formattedLocations.find(loc => loc.id === savedLocationId) || formattedLocations[0]
-          : formattedLocations[0];
+        let locationToSelect: FormattedLocation | null = null;
+        
+        if (savedLocationId) {
+          locationToSelect = formattedLocations.find(loc => loc.id === savedLocationId) || null;
+        }
+
+        // If no saved location, attempt auto-detection
+        if (!locationToSelect) {
+          console.log('No saved location found, attempting auto-detection...');
+          const detectedLocation = await attemptLocationDetection(formattedLocations);
+          
+          if (detectedLocation) {
+            locationToSelect = detectedLocation;
+          } else {
+            // Fallback to first location if detection fails
+            locationToSelect = formattedLocations[0] || null;
+          }
+        }
           
         if (locationToSelect) {
           setSelectedLocation(locationToSelect);
@@ -263,19 +333,18 @@ function App() {
     };
 
     loadLocations();
-  }, []);
+  }, [attemptLocationDetection]);
 
   // Load prayer times function
-  const loadPrayerTimes = useCallback(async () => {
+  const loadPrayerTimes = useCallback(async (date: Date = selectedDate) => {
     if (!selectedLocation) return;
     
     try {
-      setLoading(true);
+      setPrayerTimesLoading(true);
       setError(null);
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
       
       const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
       
@@ -331,14 +400,14 @@ function App() {
       }
       
       setPrayerTimes(formattedTimes);
+      setPrayerTimesLoading(false);
       localStorage.setItem('selectedLocationId', selectedLocation.id);
     } catch (err) {
-      setError('Gagal memuat jadwal shalat. Silakan coba lagi.');
       console.error('Error loading prayer times:', err);
-    } finally {
-      setLoading(false);
+      setError(err instanceof Error ? err.message : 'Failed to load prayer times');
+      setPrayerTimesLoading(false);
     }
-  }, [selectedLocation]);
+  }, [selectedDate, selectedLocation]);
 
   // Load prayer times when location changes
   useEffect(() => {
@@ -366,6 +435,39 @@ function App() {
       setSelectedLocation(location);
     }
   };
+
+  // Handle date selection
+  const handleDateSelect = useCallback((date: Date) => {
+    setSelectedDate(date);
+    loadPrayerTimes(date);
+  }, [loadPrayerTimes]);
+
+  // Generate date array around selected date (responsive: 5 mobile, 7 desktop)
+  const getDateSliderDates = useCallback((centerDate: Date, isMobile: boolean = false) => {
+    const dates = [];
+    const range = isMobile ? 2 : 3; // -2 to +2 for mobile (5 dates), -3 to +3 for desktop (7 dates)
+    for (let i = -range; i <= range; i++) {
+      const date = new Date(centerDate);
+      date.setDate(centerDate.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  }, []);
+
+  // Get month name in Indonesian
+  const getMonthName = useCallback((date: Date) => {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return months[date.getMonth()];
+  }, []);
+
+  // Get display month for slider (shows month of selected date)
+  const getSliderDisplayMonth = useCallback((selectedDate: Date) => {
+    return `${getMonthName(selectedDate)} ${selectedDate.getFullYear()}`;
+  }, [getMonthName]);
+
 
   // Get theme color classes
   const getThemeColorClasses = (themeColor: string = 'indigo') => {
@@ -419,6 +521,30 @@ function App() {
         >
           <Cog6ToothIcon className="h-6 w-6" />
         </button>
+
+        {/* Enhanced Location Detection Status */}
+        {locationDetection.isDetecting && (
+          <div className={`fixed ${isAndroid() ? 'top-16' : 'top-4'} left-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300`}>
+            <div className={`p-4 rounded-xl shadow-xl border ${
+              isDarkMode 
+                ? 'bg-gray-800 border-gray-700' 
+                : 'bg-white border-gray-200'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-indigo-600"></div>
+                <div>
+                  <p className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                    Mendeteksi Lokasi
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Mencari kota terdekat...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         
         {/* Main Content */}
         <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
@@ -428,7 +554,9 @@ function App() {
                 isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
               }`}>
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>Memuat jadwal shalat...</p>
+                <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
+                  {locationDetection.isDetecting ? 'Mendeteksi lokasi dan memuat jadwal shalat...' : 'Memuat jadwal shalat...'}
+                </p>
               </div>
             ) : error ? (
               <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
@@ -443,21 +571,22 @@ function App() {
                 </button>
               </div>
             ) : (
-              <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${
-                isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
-              }`}>
-                {/* Logo */}
-                <div className="text-center mb-4">
-                  <img 
-                    src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"} 
-                    alt="Jam Shalat App Logo" 
-                    className="h-12 w-auto mx-auto"
-                  />
-                </div>
+              <div className="space-y-4">
+                {/* Header Card */}
+                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${
+                  isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
+                }`}>
+                  {/* Logo */}
+                  <div className="text-center mb-4">
+                    <img 
+                      src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"} 
+                      alt="Jam Shalat App Logo" 
+                      className="h-12 w-auto mx-auto"
+                    />
+                  </div>
 
-                {/* Date and Time Display */}
-                <div className="mb-6 p-4 bg-white/30 rounded-xl">
-                  <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-between gap-4">
+                  {/* Time Display Only */}
+                  <div className="p-0 bg-white/30 rounded-xl text-center">
                     <div className={`text-3xl sm:text-4xl font-bold ${
                       isDarkMode ? themeColors.textLight : themeColors.text
                     }`}>
@@ -469,36 +598,132 @@ function App() {
                         hourCycle: 'h23'
                       }).replace(/\./g, ':')}
                     </div>
-                    <div className="text-center sm:text-right">
-                      <div className={`font-medium ${
+                  </div>
+                </div>
+
+                {/* Date Slider Card */}
+                <div className={`p-4 rounded-2xl shadow-xl backdrop-blur-md relative ${
+                  isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
+                }`}>
+                  {/* Today shortcut button - Absolute positioned */}
+                  {selectedDate.toDateString() !== new Date().toDateString() && (
+                    <button
+                      onClick={() => handleDateSelect(new Date())}
+                      className={`absolute top-3 right-3 px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                        settings.themeColor === 'gray' ? 'border-gray-600 text-gray-600 hover:bg-gray-50' :
+                        settings.themeColor === 'red' ? 'border-red-600 text-red-600 hover:bg-red-50' :
+                        settings.themeColor === 'yellow' ? 'border-yellow-600 text-yellow-600 hover:bg-yellow-50' :
+                        settings.themeColor === 'green' ? 'border-green-600 text-green-600 hover:bg-green-50' :
+                        settings.themeColor === 'blue' ? 'border-blue-600 text-blue-600 hover:bg-blue-50' :
+                        settings.themeColor === 'purple' ? 'border-purple-600 text-purple-600 hover:bg-purple-50' :
+                        settings.themeColor === 'pink' ? 'border-pink-600 text-pink-600 hover:bg-pink-50' :
+                        'border-indigo-600 text-indigo-600 hover:bg-indigo-50'
+                      } ${isDarkMode ? 'hover:bg-gray-700/50' : ''}`}
+                    >
+                      Hari Ini
+                    </button>
+                  )}
+                  {/* Month Display with Custom Date Picker */}
+                  <div className="text-center mb-4">
+                    <button
+                      onClick={() => setShowDatePicker(true)}
+                      className={`text-lg font-semibold hover:opacity-75 transition-opacity ${
                         isDarkMode ? 'text-gray-200' : 'text-gray-800'
-                      }`}>
-                        {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                      </div>
-                      <div className={`text-base font-medium ${
-                        isDarkMode ? 'text-gray-300' : themeColors.text
-                      }`}>
-                        {new Intl.DateTimeFormat('id-u-ca-islamic', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                          calendar: 'islamic-umalqura',
-                          numberingSystem: 'latn'
-                        }).format(new Date())} H
-                      </div>
+                      }`}
+                    >
+                      {getSliderDisplayMonth(selectedDate)}
+                    </button>
+                  </div>
+
+                  {/* Hijri Date */}
+                  <div className="text-center mb-4">
+                    <div className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-300' : themeColors.text
+                    }`}>
+                      {new Intl.DateTimeFormat('id-u-ca-islamic', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        calendar: 'islamic-umalqura',
+                        numberingSystem: 'latn'
+                      }).format(selectedDate)}
+                    </div>
+                  </div>
+
+                  {/* Responsive Date Slider */}
+                  <div className="flex justify-center space-x-1 xs:space-x-2">
+                    {/* Extra small screens: 5 dates */}
+                    <div className="flex space-x-1 xs:space-x-2 xs:hidden">
+                      {getDateSliderDates(selectedDate, true).map((date, index) => {
+                        const isActive = date.toDateString() === selectedDate.toDateString();
+                        const distance = Math.abs(index - 2); // Center is index 2 for mobile
+                        
+                        let opacity = '100';
+                        if (distance === 1) opacity = '75';
+                        if (distance === 2) opacity = '50';
+
+                        return (
+                          <button
+                            key={date.toISOString()}
+                            onClick={() => handleDateSelect(date)}
+                            className={`w-10 h-10 rounded-lg font-semibold transition-all duration-200 hover:scale-105 text-sm ${
+                              isActive
+                                ? `${themeColors.bg} text-white shadow-lg`
+                                : `${
+                                    isDarkMode 
+                                      ? `bg-gray-700 text-gray-300 hover:bg-gray-600` 
+                                      : `bg-gray-100 text-gray-700 hover:bg-gray-200`
+                                  } opacity-${opacity}`
+                            }`}
+                          >
+                            {date.getDate()}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* XS+ screens: 7 dates */}
+                    <div className="hidden xs:flex space-x-2">
+                      {getDateSliderDates(selectedDate, false).map((date, index) => {
+                        const isActive = date.toDateString() === selectedDate.toDateString();
+                        const distance = Math.abs(index - 3); // Center is index 3 for desktop
+                        
+                        let opacity = '100';
+                        if (distance === 1) opacity = '75';
+                        if (distance === 2) opacity = '50';
+                        if (distance === 3) opacity = '25';
+
+                        return (
+                          <button
+                            key={date.toISOString()}
+                            onClick={() => handleDateSelect(date)}
+                            className={`w-12 h-12 rounded-lg font-semibold transition-all duration-200 hover:scale-105 ${
+                              isActive
+                                ? `${themeColors.bg} text-white shadow-lg`
+                                : `${
+                                    isDarkMode 
+                                      ? `bg-gray-700 text-gray-300 hover:bg-gray-600` 
+                                      : `bg-gray-100 text-gray-700 hover:bg-gray-200`
+                                  } opacity-${opacity}`
+                            }`}
+                          >
+                            {date.getDate()}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className={`border-t mb-6 ${
-                  isDarkMode ? 'border-gray-600' : 'border-gray-300'
-                }`} />
+                {/* Prayer Times Card */}
+                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${
+                  isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
+                }`}>
 
                 {selectedLocation && (
                   <>
                     {/* Location and Schedule Label Row */}
-                    <div className={`px-3 py-2 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg transition-colors ${
+                    <div className={`px-3 py-2 mb-4 flex flex-col xs:flex-row xs:items-center xs:justify-between rounded-lg transition-colors ${
                       isDarkMode
                         ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
                         : 'bg-white/50 hover:bg-white/70 text-gray-800'
@@ -523,8 +748,16 @@ function App() {
                       </span>
                     </div>
 
-                    <div className="space-y-3">
-                      {prayerTimes
+                    {prayerTimesLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
+                        <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
+                          Memuat jadwal shalat...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0">
+                        {prayerTimes
                         .filter(prayer => {
                           // Always show main prayers
                           if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
@@ -566,9 +799,11 @@ function App() {
                             </span>
                           </div>
                         ))}
-                    </div>
+                      </div>
+                    )}
                   </>
                 )}
+                </div>
               </div>
             )}
           </div>
@@ -594,6 +829,49 @@ function App() {
         onLocationChange={handleLocationChange}
         isDarkMode={isDarkMode}
       />
+
+      {/* Custom Date Picker Modal */}
+      {showDatePicker && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`p-6 rounded-2xl shadow-xl max-w-sm w-full ${
+            isDarkMode ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 ${
+              isDarkMode ? 'text-gray-200' : 'text-gray-800'
+            }`}>
+              Pilih Tanggal
+            </h3>
+            
+            <input
+              type="date"
+              value={selectedDate.toISOString().split('T')[0]}
+              onChange={(e) => {
+                const newDate = new Date(e.target.value);
+                handleDateSelect(newDate);
+                setShowDatePicker(false);
+              }}
+              className={`w-full p-3 rounded-lg border ${
+                isDarkMode 
+                  ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                  : 'bg-white border-gray-300 text-gray-800'
+              } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+            />
+            
+            <div className="flex space-x-3 mt-4">
+              <button
+                onClick={() => setShowDatePicker(false)}
+                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
+                  isDarkMode 
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Photo Credit - Only show for Unsplash images */}
       {currentImage?.author && settings.background.type === 'auto' && (
