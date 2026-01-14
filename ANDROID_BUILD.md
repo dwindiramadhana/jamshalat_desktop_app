@@ -1,168 +1,148 @@
 # Android Build Setup for Jam Shalat App
 
-This document explains the Android APK build setup that runs as a separate job in GitHub Actions.
+This document explains the Android APK build setup using **Capacitor** in GitHub Actions.
 
 ## Overview
 
-The Android build is implemented as a **completely separate job** in GitHub Actions to ensure it doesn't interfere with the stable desktop builds (Windows, macOS, Linux).
-
-### Key Features
-- ✅ **Independent Android job** - doesn't touch desktop build configurations
+The Android build uses **Capacitor** instead of Tauri Mobile for simpler and faster builds:
+- ✅ **No Rust cross-compilation** - just JavaScript/TypeScript
+- ✅ **Simpler CI/CD** - no NDK setup required
+- ✅ **Faster builds** - no Rust compilation overhead
 - ✅ **Automatic APK signing** with demo keystore
-- ✅ **Separate bundle identifier** (`com.jamshalat.mobile` vs `com.jamshalat.desktop`)
-- ✅ **Dynamic configuration** - creates Android-specific configs at build time
-- ✅ **Automatic restoration** - restores original configs after build
+- ✅ **Independent from desktop builds** - doesn't touch Tauri configs
 
-## How It Works
+## Architecture
 
-### 1. Separate Job Architecture
+```
+jam-shalat-app/
+├── src-tauri/          # Desktop builds (Tauri) - Windows, macOS, Linux
+├── android/            # Mobile builds (Capacitor) - Android APK
+└── dist/               # Shared web assets (built from src/)
+```
+
+### Build Flow
+```
+src/ → npm run build → dist/ → Capacitor sync → android/ → Gradle build → APK
+```
+
+## GitHub Actions Workflow
+
 ```yaml
 jobs:
-  build:           # Desktop builds (Windows, macOS, Linux)
-  android-build:   # Android APK build (completely separate)
+  build:           # Desktop builds (Tauri - Windows, macOS, Linux)
+  android-build:   # Android APK build (Capacitor)
   release:         # Combines all artifacts
 ```
 
-### 2. Dynamic Configuration
-The Android job:
-1. **Copies** original `tauri.conf.json` and `Cargo.toml`
-2. **Modifies** copies with Android-specific settings
-3. **Temporarily replaces** originals during build
-4. **Restores** originals after build completion
+### Android Build Steps
+1. **Setup**: Java 17, Android SDK, Node.js
+2. **Build**: `npm run build` (creates dist/)
+3. **Sync**: `npx cap sync android` (copies to android/)
+4. **Sign**: Create keystore and configure Gradle
+5. **Build APK**: `./gradlew assembleRelease`
+6. **Upload**: APK artifact available for download
 
-### 3. Android-Specific Settings
-- **Bundle ID**: `com.jamshalat.mobile` (different from desktop)
-- **Mobile features**: Adds `["mobile"]` feature to Tauri
-- **Mobile plugins**: `tauri-plugin-shell`, `tauri-plugin-fs`, `tauri-plugin-dialog`
-- **Android config**: `minSdkVersion: 24`
+## Local Development
 
-### 4. Automatic Signing
-- Creates demo keystore during build
-- Configures Gradle signing automatically
-- Generates signed APK ready for installation
+### Prerequisites
+- Node.js 18+
+- Java 17
+- Android Studio (optional, for emulator)
 
-## Build Process
-
-### GitHub Actions Workflow
-1. **Setup**: Java 17, Android SDK, Node.js, Rust with Android target
-2. **Config Creation**: Dynamic Android-specific configurations
-3. **Platform Init**: `tauri android init`
-4. **Signing Setup**: Keystore creation and Gradle configuration
-5. **Build**: `tauri android build` - generates signed APK
-6. **Artifact Upload**: APK available as GitHub Actions artifact
-7. **Cleanup**: Restore original configurations
-
-### Local Development
-For local Android development:
+### Build Commands
 ```bash
-# Install Android target
-rustup target add aarch64-linux-android
+# Install dependencies
+npm install
 
-# You would need to manually create Android configs
-# (The CI does this automatically)
+# Build web assets and sync to Android
+npm run cap:build
+
+# Build APK (command line)
+cd android && ./gradlew assembleRelease
+
+# Or open in Android Studio
+npm run android:open
 ```
+
+## Configuration
+
+### Capacitor Config (`capacitor.config.ts`)
+```typescript
+{
+  appId: 'com.jamshalat.mobile',
+  appName: 'Jam Shalat',
+  webDir: 'dist',
+  android: {
+    buildOptions: {
+      keystorePath: '../android-release-key.jks',
+      keystoreAlias: 'jam-shalat-key'
+    }
+  }
+}
+```
+
+### Android Signing
+- **Keystore**: `android-release-key.jks`
+- **Alias**: `jam-shalat-key`
+- **Password**: `jamshalat2024`
 
 ## Outputs
 
 ### GitHub Actions Artifacts
 - **Name**: `jam-shalat-android-apk`
-- **Contains**: 
-  - Universal APK (works on all Android devices)
-  - Android App Bundle (AAB) for Play Store
+- **Location**: `android/app/build/outputs/apk/release/`
 
 ### Release Downloads
-When creating a GitHub release, users get:
 - **Desktop**: Windows `.msi`, macOS `.dmg`, Linux `.AppImage`/`.deb`
-- **Mobile**: Android `.apk` for sideloading
+- **Android**: `.apk` for sideloading
 
 ## Installation on Android
 
-1. **Download** the `.apk` file from GitHub releases
-2. **Enable** "Unknown Sources" in Android Settings → Security
-3. **Install** the APK file
-4. **Grant** necessary permissions when prompted
+1. Download the `.apk` file from GitHub releases
+2. Enable "Unknown Sources" in Settings → Security
+3. Install the APK file
+4. Grant necessary permissions
+
+## Advantages of Capacitor
+
+| Aspect | Capacitor | Tauri Mobile |
+|--------|-----------|--------------|
+| **Build complexity** | Simple (JS only) | Complex (Rust + NDK) |
+| **CI/CD setup** | Minimal | Extensive |
+| **Build time** | ~2-3 minutes | ~10-15 minutes |
+| **Plugin ecosystem** | 100+ plugins | Limited |
+| **Desktop impact** | None | Required config changes |
 
 ## Security Notes
 
 ### Demo Keystore
-- **Current**: Uses demo keystore with hardcoded password
-- **Production**: Should use GitHub Secrets for real keystore
-- **Keystore Details**:
-  - Alias: `jam-shalat-key`
-  - Password: `jamshalat2024`
-  - Validity: 10,000 days
+- **Current**: Uses demo keystore (for development)
+- **Production**: Use GitHub Secrets for real keystore
 
-### Bundle Identifier
-- **Desktop**: `com.jamshalat.desktop`
-- **Android**: `com.jamshalat.mobile`
-- **Reason**: Allows separate app installations and configurations
-
-## Advantages of This Approach
-
-### ✅ **Safe Implementation**
-- Desktop builds remain completely untouched
-- No risk of breaking existing stable builds
-- Independent job can fail without affecting desktop
-
-### ✅ **Clean Separation**
-- Different bundle identifiers for desktop vs mobile
-- Separate configurations and dependencies
-- No cross-contamination between platforms
-
-### ✅ **Maintainable**
-- Easy to modify Android settings without affecting desktop
-- Can be disabled/enabled independently
-- Clear separation of concerns
-
-### ✅ **Scalable**
-- Can add iOS the same way in the future
-- Easy to add more mobile-specific features
-- Doesn't complicate the main build matrix
+### Bundle Identifiers
+- **Desktop (Tauri)**: `com.jamshalat.desktop`
+- **Android (Capacitor)**: `com.jamshalat.mobile`
 
 ## Troubleshooting
 
-### Android Build Fails
-- Check Java 17 installation
-- Verify Android SDK setup
-- Ensure Rust Android target is installed
-- Check keystore creation logs
+### Build Fails
+- Ensure Java 17 is installed
+- Check Android SDK setup
+- Run `npm run build` first
 
 ### APK Installation Issues
-- Verify "Unknown Sources" is enabled
-- Check Android version compatibility (min SDK 24)
+- Enable "Unknown Sources" in Android settings
+- Check Android version (min SDK 24 / Android 7.0)
 - Ensure sufficient storage space
-- Try clearing app data if updating
+
+### Sync Issues
+```bash
+npx cap sync android --force
+```
 
 ## Future Enhancements
 
-### Production Ready
-1. **Real Keystore**: Use GitHub Secrets for production keystore
+1. **Production Keystore**: Use GitHub Secrets
 2. **Play Store**: Add Google Play Console upload
-3. **Fastlane**: Integrate Fastlane for advanced automation
-4. **Testing**: Add Android-specific testing
-
-### Additional Features
-1. **iOS Support**: Add similar separate job for iOS
-2. **Multiple Architectures**: Support more Android architectures
-3. **Optimization**: APK size optimization and obfuscation
-
-## Technical Details
-
-### File Changes During Build
-```
-Original State:
-├── src-tauri/tauri.conf.json (desktop config)
-└── src-tauri/Cargo.toml (desktop features)
-
-During Android Build:
-├── src-tauri/tauri.conf.json (Android config)
-├── src-tauri/Cargo.toml (mobile features)
-├── src-tauri/tauri.conf.json.original (backup)
-└── src-tauri/Cargo.toml.original (backup)
-
-After Build:
-├── src-tauri/tauri.conf.json (restored desktop config)
-└── src-tauri/Cargo.toml (restored desktop features)
-```
-
-This ensures the repository always maintains the original desktop configuration while allowing Android builds to use mobile-specific settings.
+3. **iOS**: Add Capacitor iOS when Apple Developer account is available
+4. **Optimization**: APK size optimization

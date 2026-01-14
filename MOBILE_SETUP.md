@@ -1,136 +1,128 @@
 # Android Mobile Build Setup for Jam Shalat App
 
-This document explains how to set up Android APK builds with proper signing for the Jam Shalat prayer times app.
+This document explains how to set up Android APK builds using **Capacitor** for the Jam Shalat prayer times app.
 
 ## Overview
 
-The mobile setup includes:
-- **Android APK** builds with automatic signing
-- **GitHub Actions** integration for automated builds
-- **Local development** support
+The mobile setup uses a **hybrid approach**:
+- **Capacitor** for Android APK builds (simpler, faster)
+- **Tauri** for desktop builds (Windows, macOS, Linux)
 
-**Note**: iOS builds are not included because they require a paid Apple Developer account ($99/year) for code signing. Even with Fastlane, iOS signing always requires valid certificates from Apple's paid program.
+**Note**: iOS builds are not included because they require a paid Apple Developer account ($99/year).
 
 ## Quick Setup
 
-Run the setup script to initialize mobile platforms:
-
 ```bash
-./setup-mobile.sh
+# Install dependencies
+npm install
+
+# Build web assets and sync to Android
+npm run cap:build
+
+# Open in Android Studio (optional)
+npm run android:open
 ```
 
-## Manual Setup
+## Architecture
 
-### 1. Mobile Dependencies
+### Why Capacitor for Android?
 
-The following have been added to support mobile builds:
+| Aspect | Capacitor | Tauri Mobile |
+|--------|-----------|--------------|
+| Build simplicity | Pure JS/TS | Requires Rust + NDK |
+| CI/CD complexity | Simple Node.js | Complex Rust cross-compilation |
+| Build speed | Faster | Slower |
+| Plugin ecosystem | Mature, 100+ plugins | Limited |
 
-**Cargo.toml:**
-- `tauri = { version = "2.7.0", features = ["mobile"] }`
-- Mobile plugins: `tauri-plugin-shell`, `tauri-plugin-fs`, `tauri-plugin-dialog`
+### Hybrid Setup
 
-**tauri.conf.json:**
-- Bundle identifier changed to `com.jamshalat.app`
-- Android configuration with minimum SDK version 24
+- **Desktop (Tauri)**: `src-tauri/` - Windows, macOS, Linux builds
+- **Android (Capacitor)**: `android/` - APK builds
 
-### 2. Android Signing
-
-**Keystore Creation:**
-```bash
-keytool -genkey -v -keystore ./android-release-key.jks \
-    -keyalg RSA -keysize 2048 -validity 10000 \
-    -alias jam-shalat-key \
-    -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat App, L=Jakarta, ST=Jakarta, C=ID" \
-    -storepass jamshalat2024 -keypass jamshalat2024
-```
-
-**Signing Configuration:**
-File: `src-tauri/gen/android/keystore.properties`
-```properties
-keyAlias=jam-shalat-key
-password=jamshalat2024
-storeFile=../../../android-release-key.jks
-```
-
-### 3. iOS Signing (Not Implemented)
-
-**Why iOS is not included:**
-- Requires paid Apple Developer account ($99/year)
-- No free alternative for iOS code signing
-- Fastlane cannot bypass Apple's certificate requirements
-- Would need valid certificates and provisioning profiles
-
-**If you want to add iOS later:**
-1. Subscribe to Apple Developer Program
-2. Add iOS configuration back to `tauri.conf.json`
-3. Set up certificates and provisioning profiles
-4. Re-enable iOS builds in GitHub Actions
-
-## GitHub Actions Integration
-
-The workflow now includes mobile builds:
-
-### Build Matrix
-- **Android**: Ubuntu runner with Android SDK and NDK
-- **Desktop**: Existing Windows, macOS, Linux builds
-
-### Mobile Artifacts
-- **Android**: APK and AAB files in `src-tauri/gen/android/app/build/outputs/`
-
-### Signing in CI/CD
-- **Android**: Automatic keystore creation and signing
+Both share the same frontend code from `dist/`.
 
 ## Local Development
 
-### Android Build
+### Build Android APK
 ```bash
-npm run tauri android init    # First time only
-npm run tauri android build   # Build signed APK
+# Build web assets and sync
+npm run cap:build
+
+# Build APK (requires Android Studio or command line)
+cd android && ./gradlew assembleRelease
 ```
 
-## Installation on Devices
+### Open in Android Studio
+```bash
+npm run android:open
+```
 
-### Android
-1. Enable "Unknown Sources" in Settings → Security
-2. Download and install the APK file
-3. Grant necessary permissions
+## Configuration
 
-## Security Notes
+### Capacitor Config (`capacitor.config.ts`)
+```typescript
+{
+  appId: 'com.jamshalat.mobile',
+  appName: 'Jam Shalat',
+  webDir: 'dist'
+}
+```
 
-- **Keystore Security**: Keep `android-release-key.jks` private
-- **Production**: Use GitHub Secrets for keystore in CI/CD
-- **iOS Certificates**: Store securely, never commit to repository
+### Android Signing
+Keystore file: `android-release-key.jks`
+- Alias: `jam-shalat-key`
+- Password: `jamshalat2024`
 
-## Troubleshooting
+## GitHub Actions Integration
 
-### Android Issues
-- **NDK not found**: Ensure Android SDK and NDK are properly installed
-- **Signing failed**: Check keystore path and credentials
-- **Build failed**: Verify Java 17 is installed
+The workflow includes:
+- **Desktop builds**: Tauri (Windows, macOS, Linux)
+- **Android builds**: Capacitor (APK)
 
+### Android Build Steps
+1. Setup Java 17 and Android SDK
+2. Install dependencies
+3. Build web assets (`npm run build`)
+4. Sync Capacitor (`npx cap sync android`)
+5. Build APK (`./gradlew assembleRelease`)
 
+## Installation on Android
+
+1. Download the `.apk` file from GitHub releases
+2. Enable "Unknown Sources" in Settings → Security
+3. Install the APK file
+4. Grant necessary permissions
 
 ## File Structure
 
 ```
 jam-shalat-app/
-├── android-release-key.jks          # Android signing keystore
-├── setup-mobile.sh                  # Mobile setup script
-├── MOBILE_SETUP.md                  # This documentation
-├── src-tauri/
-│   ├── tauri.conf.json              # Updated with Android config
-│   ├── Cargo.toml                   # Updated with mobile features
-│   └── gen/
-│       └── android/                 # Android project (after init)
-│           └── keystore.properties  # Android signing config
-└── .github/workflows/build.yml      # Updated with Android builds
+├── android/                         # Capacitor Android project
+│   ├── app/
+│   │   └── build.gradle            # Android build config
+│   └── gradlew                     # Gradle wrapper
+├── capacitor.config.ts             # Capacitor configuration
+├── android-release-key.jks         # Android signing keystore
+├── src-tauri/                      # Tauri desktop project (unchanged)
+└── .github/workflows/build.yml     # CI/CD with Capacitor Android
+```
+
+## Troubleshooting
+
+### Android Build Issues
+- **Gradle error**: Ensure Java 17 is installed
+- **Signing failed**: Check keystore path and credentials
+- **Web assets not found**: Run `npm run build` first
+
+### Sync Issues
+```bash
+# Force sync all assets
+npx cap sync android --force
 ```
 
 ## Next Steps
 
-1. **For Android**: Ready to build! Run the setup script and test builds
-2. **For iOS**: Would require paid Apple Developer account ($99/year)
-3. **For Production**: Set up proper secret management for signing keys
-4. **For Distribution**: Consider Google Play Store publishing workflows
-
-The Android builds will be automatically generated by GitHub Actions and available as release artifacts alongside the desktop versions.
+1. **Android**: Ready to build via GitHub Actions
+2. **iOS**: Would require paid Apple Developer account ($99/year)
+3. **Production**: Use GitHub Secrets for keystore credentials
+4. **Distribution**: Consider Google Play Store publishing

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Jam Shalat</string>
+    <string name="title_activity_main">Jam Shalat</string>
+    <string name="package_name">com.jamshalat.mobile</string>
+    <string name="custom_url_scheme">com.jamshalat.mobile</string>
+</resources>

@@ -1,6 +1,6 @@
 import { Fragment, useState, useCallback, type ChangeEvent } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { PhotoIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { PhotoIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import type { Settings as AppSettings, UnsplashImage } from '../types/settings';
 import type { LocationData } from '../types';

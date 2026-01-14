@@ -4,7 +4,7 @@ import { fetchLocations, fetchPrayerTimes } from './api';
 import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
-import { Cog6ToothIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { 
   autoDetectLocation, 
   shouldAttemptLocationDetection, 
