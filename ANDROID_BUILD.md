@@ -8,7 +8,7 @@ The Android build uses **Capacitor** instead of Tauri Mobile for simpler and fas
 - ✅ **No Rust cross-compilation** - just JavaScript/TypeScript
 - ✅ **Simpler CI/CD** - no NDK setup required
 - ✅ **Faster builds** - no Rust compilation overhead
-- ✅ **Automatic APK signing** with demo keystore
+- ✅ **Automatic APK signing** with CI-provided keystore
 - ✅ **Independent from desktop builds** - doesn't touch Tauri configs
 
 ## Architecture
@@ -35,7 +35,7 @@ jobs:
 ```
 
 ### Android Build Steps
-1. **Setup**: Java 17, Android SDK, Node.js
+1. **Setup**: Java 21, Android SDK, Node.js
 2. **Build**: `npm run build` (creates dist/)
 3. **Sync**: `npx cap sync android` (copies to android/)
 4. **Sign**: Create keystore and configure Gradle
@@ -46,7 +46,7 @@ jobs:
 
 ### Prerequisites
 - Node.js 18+
-- Java 17
+- Java 21
 - Android Studio (optional, for emulator)
 
 ### Build Commands
@@ -82,9 +82,8 @@ npm run android:open
 ```
 
 ### Android Signing
-- **Keystore**: `android-release-key.jks`
-- **Alias**: `jam-shalat-key`
-- **Password**: `jamshalat2024`
+- **Keystore**: provided via GitHub Secrets in CI
+- **Alias**: `jam-shalat-key` (set in secrets)
 
 ## Outputs
 
@@ -115,9 +114,9 @@ npm run android:open
 
 ## Security Notes
 
-### Demo Keystore
-- **Current**: Uses demo keystore (for development)
-- **Production**: Use GitHub Secrets for real keystore
+### Keystore Security
+- **Current**: CI reads keystore from GitHub Secrets
+- **Production**: Keep the keystore out of git and rotate if exposed
 
 ### Bundle Identifiers
 - **Desktop (Tauri)**: `com.jamshalat.desktop`
@@ -126,7 +125,7 @@ npm run android:open
 ## Troubleshooting
 
 ### Build Fails
-- Ensure Java 17 is installed
+- Ensure Java 21 is installed
 - Check Android SDK setup
 - Run `npm run build` first
 

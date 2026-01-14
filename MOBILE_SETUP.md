@@ -69,9 +69,8 @@ npm run android:open
 ```
 
 ### Android Signing
-Keystore file: `android-release-key.jks`
-- Alias: `jam-shalat-key`
-- Password: `jamshalat2024`
+Keystore file is provided via CI secrets.
+- Alias: `jam-shalat-key` (set in secrets)
 
 ## GitHub Actions Integration
 
@@ -80,7 +79,7 @@ The workflow includes:
 - **Android builds**: Capacitor (APK)
 
 ### Android Build Steps
-1. Setup Java 17 and Android SDK
+1. Setup Java 21 and Android SDK
 2. Install dependencies
 3. Build web assets (`npm run build`)
 4. Sync Capacitor (`npx cap sync android`)
@@ -102,7 +101,7 @@ jam-shalat-app/
 │   │   └── build.gradle            # Android build config
 │   └── gradlew                     # Gradle wrapper
 ├── capacitor.config.ts             # Capacitor configuration
-├── android-release-key.jks         # Android signing keystore
+├── android-release-key.jks         # Android signing keystore (ignored in git)
 ├── src-tauri/                      # Tauri desktop project (unchanged)
 └── .github/workflows/build.yml     # CI/CD with Capacitor Android
 ```
@@ -110,7 +109,7 @@ jam-shalat-app/
 ## Troubleshooting
 
 ### Android Build Issues
-- **Gradle error**: Ensure Java 17 is installed
+- **Gradle error**: Ensure Java 21 is installed
 - **Signing failed**: Check keystore path and credentials
 - **Web assets not found**: Run `npm run build` first
 

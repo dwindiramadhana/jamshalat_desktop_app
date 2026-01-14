@@ -31,4 +31,4 @@ android/build/
 *.aab
 
 # Keystore (keep template, exclude real ones in production)
-# android-release-key.jks
+android-release-key.jks
