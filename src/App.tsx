@@ -5,6 +5,7 @@ import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import DesktopMasjidView2 from './components/DesktopMasjidView_2';
 import { 
   autoDetectLocation, 
   shouldAttemptLocationDetection, 
@@ -26,6 +27,9 @@ type AppSettings = Settings & {
   showNextPrayerLabel: boolean;
 };
 
+const DESKTOP_MIN_WIDTH = 900;
+const DESKTOP_MIN_ASPECT_RATIO = 4 / 3;
+
 // Default values for settings
 const DEFAULT_APP_SETTINGS: AppSettings = {
   ...DEFAULT_SETTINGS,
@@ -44,6 +48,15 @@ interface FormattedPrayerTime extends PrayerTime {
 }
 
 function App() {
+  const getLayoutMode = () => {
+    if (typeof window === 'undefined') return 'mobile';
+    const width = window.innerWidth;
+    const height = window.innerHeight || 1;
+    const ratio = width / height;
+    return width >= DESKTOP_MIN_WIDTH && ratio >= DESKTOP_MIN_ASPECT_RATIO ? 'desktop' : 'mobile';
+  };
+
+  const [layoutMode, setLayoutMode] = useState<'mobile' | 'desktop'>(getLayoutMode);
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('appSettings');
     if (saved) {
@@ -92,6 +105,18 @@ function App() {
     }, 1000);
     
     return () => clearInterval(timer);
+  }, []);
+
+  // Update layout mode on resize/orientation change
+  useEffect(() => {
+    const updateLayoutMode = () => setLayoutMode(getLayoutMode());
+    updateLayoutMode();
+    window.addEventListener('resize', updateLayoutMode);
+    window.addEventListener('orientationchange', updateLayoutMode);
+    return () => {
+      window.removeEventListener('resize', updateLayoutMode);
+      window.removeEventListener('orientationchange', updateLayoutMode);
+    };
   }, []);
 
   // Auto-advance prayer highlight and fetch tomorrow's schedule when needed
@@ -486,6 +511,32 @@ function App() {
 
   const themeColors = getThemeColorClasses(settings.themeColor);
   const isDarkMode = settings.darkMode;
+  const isDesktopLayout = layoutMode === 'desktop';
+
+  const loadingContent = (
+    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
+      isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+    }`}>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+      <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
+        {locationDetection.isDetecting ? 'Mendeteksi lokasi dan memuat jadwal shalat...' : 'Memuat jadwal shalat...'}
+      </p>
+    </div>
+  );
+
+  const errorContent = (
+    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
+      isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+    }`}>
+      <p className="text-red-600 mb-4">{error}</p>
+      <button
+        onClick={() => loadPrayerTimes()}
+        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+      >
+        Coba Lagi
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -547,29 +598,22 @@ function App() {
 
         
         {/* Main Content */}
-        <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
-          <div className="w-full max-w-md">
+        <div className={`min-h-screen flex ${isDesktopLayout ? 'items-stretch' : 'items-center'} justify-center p-4 relative z-10`}>
+          <div className={`w-full ${isDesktopLayout ? 'max-w-6xl' : 'max-w-md'}`}>
             {loading ? (
-              <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
-                isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
-              }`}>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
-                  {locationDetection.isDetecting ? 'Mendeteksi lokasi dan memuat jadwal shalat...' : 'Memuat jadwal shalat...'}
-                </p>
-              </div>
+              loadingContent
             ) : error ? (
-              <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
-                isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
-              }`}>
-                <p className="text-red-600 mb-4">{error}</p>
-                <button
-                  onClick={() => loadPrayerTimes()}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Coba Lagi
-                </button>
-              </div>
+              errorContent
+            ) : isDesktopLayout ? (
+              <DesktopMasjidView2
+                currentTime={currentTime}
+                selectedDate={selectedDate}
+                locationName={selectedLocation?.name || 'Jam Shalat'}
+                subtitle="Alamat masjid belum diatur"
+                message="Pengumuman: shalat berjamaah akan dimulai 10 menit sebelum adzan. Mohon merapatkan shaf."
+                prayerTimes={prayerTimes}
+                themeColors={themeColors}
+              />
             ) : (
               <div className="space-y-4">
                 {/* Header Card */}

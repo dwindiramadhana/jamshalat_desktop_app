@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const colors = require('tailwindcss/colors');
+
 module.exports = {
   content: [
     "./index.html",
@@ -10,6 +12,10 @@ module.exports = {
         'xs': '480px',
       },
       colors: {
+        white: colors.white,
+        black: colors.black,
+        gray: colors.gray,
+        emerald: colors.emerald,
         primary: {
           DEFAULT: '#2563eb',
           dark: '#1d4ed8',
