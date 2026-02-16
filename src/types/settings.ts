@@ -19,6 +19,28 @@ export interface BackgroundSettings {
 
 export type ThemeColor = 'slate' | 'gray' | 'zinc' | 'neutral' | 'stone' | 'red' | 'orange' | 'amber' | 'yellow' | 'lime' | 'green' | 'emerald' | 'teal' | 'cyan' | 'sky' | 'blue' | 'indigo' | 'violet' | 'purple' | 'fuchsia' | 'pink' | 'rose';
 
+export interface MasjidSettings {
+  name: string;
+  address: string;
+  runningText: string[];
+  runningTextMode: 'marquee' | 'fade';
+  runningTextSpeed: 'slow' | 'normal' | 'fast';
+  iqamahMode: 'unified' | 'detailed';
+  iqamahUnified: number;
+  iqamahDetailed: {
+    subuh: number;
+    dzuhur: number;
+    ashar: number;
+    maghrib: number;
+    isya: number;
+  };
+  fridayDuty: {
+    khatib: string;
+    imam: string;
+    bilal: string;
+  };
+}
+
 export interface Settings {
   background: BackgroundSettings;
   locationId: string | null;
@@ -27,6 +49,7 @@ export interface Settings {
   showNextPrayerLabel: boolean;
   themeColor: ThemeColor;
   darkMode: boolean;
+  masjid: MasjidSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -52,4 +75,25 @@ export const DEFAULT_SETTINGS: Settings = {
   showNextPrayerLabel: true,
   themeColor: 'indigo',
   darkMode: false,
+  masjid: {
+    name: '',
+    address: '',
+    runningText: [],
+    runningTextMode: 'marquee',
+    runningTextSpeed: 'normal',
+    iqamahMode: 'unified',
+    iqamahUnified: 10,
+    iqamahDetailed: {
+      subuh: 10,
+      dzuhur: 10,
+      ashar: 10,
+      maghrib: 10,
+      isya: 10,
+    },
+    fridayDuty: {
+      khatib: '',
+      imam: '',
+      bilal: '',
+    },
+  },
 };

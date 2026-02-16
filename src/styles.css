@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Custom styles */
 body {
@@ -20,6 +18,7 @@ body {
   0% {
     transform: translateX(100%);
   }
+
   100% {
     transform: translateX(-100%);
   }
@@ -40,17 +39,87 @@ body {
   0% {
     transform: translateX(100%);
   }
+
   10% {
     transform: translateX(0);
   }
+
   90% {
     transform: translateX(0);
   }
+
   100% {
     transform: translateX(-100%);
   }
 }
 
+
+@keyframes slide-up {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  10% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  90% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 .animate-marquee {
   animation: marquee-hold 10s linear infinite;
+}
+
+/* Marquee speed variants */
+.marquee--slow .marquee__inner {
+  animation-duration: 40s;
+}
+
+.marquee--normal .marquee__inner {
+  animation-duration: 20s;
+}
+
+.marquee--fast .marquee__inner {
+  animation-duration: 10s;
+}
+
+/* Fade In/Out animation for running text */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.animate-fade-in-out {
+  animation: fadeInOut 5s ease-in-out;
 }

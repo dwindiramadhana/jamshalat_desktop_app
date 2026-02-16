@@ -5,19 +5,19 @@ import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
-import DesktopMasjidView2 from './components/DesktopMasjidView_2';
-import { 
-  autoDetectLocation, 
-  shouldAttemptLocationDetection, 
+import DesktopMasjidView4 from './components/DesktopMasjidView_4';
+import {
+  autoDetectLocation,
+  shouldAttemptLocationDetection,
   saveLocationDetectionResult,
-  type LocationDetectionResult 
+  type LocationDetectionResult
 } from './services/locationService';
 
 // Platform detection for Android-specific styling
 const isAndroid = () => {
   if (typeof window !== 'undefined') {
-    return /Android/i.test(window.navigator.userAgent) || 
-           (window as any).__TAURI_METADATA__?.currentPlatform === 'android';
+    return /Android/i.test(window.navigator.userAgent) ||
+      (window as any).__TAURI_METADATA__?.currentPlatform === 'android';
   }
   return false;
 };
@@ -47,6 +47,7 @@ interface FormattedPrayerTime extends PrayerTime {
   timeInMinutes: number;
 }
 
+
 function App() {
   const getLayoutMode = () => {
     if (typeof window === 'undefined') return 'mobile';
@@ -69,6 +70,18 @@ function App() {
             ...DEFAULT_APP_SETTINGS.background,
             ...parsed.background,
           },
+          masjid: {
+            ...DEFAULT_APP_SETTINGS.masjid,
+            ...(parsed.masjid || {}),
+            iqamahDetailed: {
+              ...DEFAULT_APP_SETTINGS.masjid.iqamahDetailed,
+              ...(parsed.masjid?.iqamahDetailed || {}),
+            },
+            fridayDuty: {
+              ...DEFAULT_APP_SETTINGS.masjid.fridayDuty,
+              ...(parsed.masjid?.fridayDuty || {}),
+            }
+          }
         };
       } catch (e) {
         console.error('Failed to parse saved settings', e);
@@ -77,7 +90,7 @@ function App() {
     }
     return DEFAULT_APP_SETTINGS;
   });
-  
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState<UnsplashImage | null>(null);
   const backgroundTimer = useRef<NodeJS.Timeout | null>(null);
@@ -103,7 +116,7 @@ function App() {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, []);
 
@@ -169,15 +182,15 @@ function App() {
       const year = tomorrow.getFullYear();
       const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
       const day = String(tomorrow.getDate()).padStart(2, '0');
-      
+
       const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
-      
+
       if (!prayerData.status || !prayerData.data?.jadwal) {
         throw new Error('Invalid prayer times data received');
       }
-      
+
       const { jadwal } = prayerData.data;
-      
+
       const prayerTimesList = [
         { name: 'Subuh', time: jadwal.subuh },
         { name: 'Terbit', time: jadwal.terbit },
@@ -187,18 +200,18 @@ function App() {
         { name: 'Maghrib', time: jadwal.maghrib },
         { name: 'Isya', time: jadwal.isya },
       ];
-      
+
       const formattedTimes = prayerTimesList.map((prayer, index) => {
         const [hours, minutes] = prayer.time.split(':').map(Number);
         const prayerTotalMinutes = hours * 60 + minutes;
-        
+
         return {
           ...prayer,
           isNext: index === 0, // Highlight first prayer (Subuh) for tomorrow
           timeInMinutes: prayerTotalMinutes,
         };
       });
-      
+
       setPrayerTimes(formattedTimes);
     } catch (err) {
       console.error('Error loading tomorrow prayer times:', err);
@@ -208,10 +221,10 @@ function App() {
   // Save settings to localStorage when they change
   useEffect(() => {
     localStorage.setItem('appSettings', JSON.stringify(settings));
-    
+
     // Handle background rotation
-    if (settings.background.images.length > 1) {
-      // Enable rotation for both auto and static types when there are multiple images
+    if (settings.background.images.length > 0) {
+      // Enable rotation for both auto and static types
       if (settings.background.type === 'auto') {
         startBackgroundRotation(settings.background.images, settings.background.rotationInterval);
       } else if (settings.background.type === 'static') {
@@ -223,7 +236,7 @@ function App() {
       setCurrentImage(null);
       clearBackgroundRotation();
     }
-    
+
     return () => {
       clearBackgroundRotation();
     };
@@ -232,16 +245,16 @@ function App() {
   // Background rotation logic
   const startBackgroundRotation = (images: UnsplashImage[], intervalMinutes: number) => {
     clearBackgroundRotation();
-    
+
     const intervalMs = intervalMinutes * 60 * 1000;
-    
+
     if (images.length === 0) return;
-    
+
     if (settings.background.type === 'auto') {
       // For auto images, use currentImage state
       let currentIndex = 0;
       setCurrentImage(images[0]);
-      
+
       if (images.length > 1) {
         backgroundTimer.current = setInterval(() => {
           currentIndex = (currentIndex + 1) % images.length;
@@ -251,7 +264,7 @@ function App() {
     } else if (settings.background.type === 'static') {
       // For static images, update currentImageIndex in settings
       let currentIndex = settings.background.currentImageIndex || 0;
-      
+
       if (images.length > 1) {
         backgroundTimer.current = setInterval(() => {
           currentIndex = (currentIndex + 1) % images.length;
@@ -282,12 +295,12 @@ function App() {
     }
 
     setLocationDetection(prev => ({ ...prev, isDetecting: true }));
-    
+
     try {
       const result = await autoDetectLocation(availableLocations);
-      setLocationDetection(prev => ({ 
-        ...prev, 
-        isDetecting: false, 
+      setLocationDetection(prev => ({
+        ...prev,
+        isDetecting: false,
         result
       }));
 
@@ -303,9 +316,9 @@ function App() {
       }
     } catch (error) {
       console.error('Location detection error:', error);
-      setLocationDetection(prev => ({ 
-        ...prev, 
-        isDetecting: false, 
+      setLocationDetection(prev => ({
+        ...prev,
+        isDetecting: false,
         result: { success: false, error: 'Location detection failed' }
       }));
       return false;
@@ -324,11 +337,11 @@ function App() {
           name: loc.lokasi || loc.name || 'Unknown Location'
         }));
         setLocations(formattedLocations);
-        
+
         // Check if we have a saved location
         const savedLocationId = localStorage.getItem('selectedLocationId');
         let locationToSelect: FormattedLocation | null = null;
-        
+
         if (savedLocationId) {
           locationToSelect = formattedLocations.find(loc => loc.id === savedLocationId) || null;
         }
@@ -337,7 +350,7 @@ function App() {
         if (!locationToSelect) {
           console.log('No saved location found, attempting auto-detection...');
           const detectedLocation = await attemptLocationDetection(formattedLocations);
-          
+
           if (detectedLocation) {
             locationToSelect = detectedLocation;
           } else {
@@ -345,7 +358,7 @@ function App() {
             locationToSelect = formattedLocations[0] || null;
           }
         }
-          
+
         if (locationToSelect) {
           setSelectedLocation(locationToSelect);
         }
@@ -363,28 +376,28 @@ function App() {
   // Load prayer times function
   const loadPrayerTimes = useCallback(async (date: Date = selectedDate) => {
     if (!selectedLocation) return;
-    
+
     try {
       setPrayerTimesLoading(true);
       setError(null);
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
-      
+
       const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
-      
+
       if (!prayerData.status || !prayerData.data?.jadwal) {
         throw new Error('Invalid prayer times data received');
       }
-      
+
       const { jadwal } = prayerData.data;
-      
+
       // Format prayer times with next prayer highlighting
       const currentTime = new Date();
       const currentHours = currentTime.getHours();
       const currentMinutes = currentTime.getMinutes();
       const currentTotalMinutes = currentHours * 60 + currentMinutes;
-      
+
       const prayerTimesList = [
         { name: 'Subuh', time: jadwal.subuh },
         { name: 'Terbit', time: jadwal.terbit },
@@ -394,36 +407,36 @@ function App() {
         { name: 'Maghrib', time: jadwal.maghrib },
         { name: 'Isya', time: jadwal.isya },
       ];
-      
+
       // Find the next prayer time
       let nextPrayerIndex = -1;
       let earliestNextDayIndex = -1;
-      
+
       const formattedTimes = prayerTimesList.map((prayer, index) => {
         const [hours, minutes] = prayer.time.split(':').map(Number);
         const prayerTotalMinutes = hours * 60 + minutes;
-        
+
         if (prayerTotalMinutes > currentTotalMinutes && nextPrayerIndex === -1) {
           nextPrayerIndex = index;
         }
-        
-        if (earliestNextDayIndex === -1 || 
-            prayerTotalMinutes < prayerTimesList[earliestNextDayIndex].time.split(':').map(Number).reduce((h, m) => h * 60 + m, 0)) {
+
+        if (earliestNextDayIndex === -1 ||
+          prayerTotalMinutes < prayerTimesList[earliestNextDayIndex].time.split(':').map(Number).reduce((h, m) => h * 60 + m, 0)) {
           earliestNextDayIndex = index;
         }
-        
+
         return {
           ...prayer,
           isNext: false,
           timeInMinutes: prayerTotalMinutes,
         };
       });
-      
+
       const nextIndex = nextPrayerIndex !== -1 ? nextPrayerIndex : earliestNextDayIndex;
       if (nextIndex !== -1) {
         formattedTimes[nextIndex].isNext = true;
       }
-      
+
       setPrayerTimes(formattedTimes);
       setPrayerTimesLoading(false);
       localStorage.setItem('selectedLocationId', selectedLocation.id);
@@ -514,9 +527,8 @@ function App() {
   const isDesktopLayout = layoutMode === 'desktop';
 
   const loadingContent = (
-    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
-      isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
-    }`}>
+    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+      }`}>
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
       <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
         {locationDetection.isDetecting ? 'Mendeteksi lokasi dan memuat jadwal shalat...' : 'Memuat jadwal shalat...'}
@@ -525,9 +537,8 @@ function App() {
   );
 
   const errorContent = (
-    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
-      isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
-    }`}>
+    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+      }`}>
       <p className="text-red-600 mb-4">{error}</p>
       <button
         onClick={() => loadPrayerTimes()}
@@ -540,47 +551,45 @@ function App() {
 
   return (
     <>
-      <div className={`min-h-screen relative ${
-        isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
-      }`}>
+      <div className={`min-h-screen relative ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
+        }`}>
         {/* Background Image */}
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
             backgroundImage: settings.background.type === 'auto' && currentImage
               ? `url(${currentImage.url})`
               : settings.background.type === 'static' && settings.background.images.length > 0 && settings.background.currentImageIndex !== undefined
-              ? `url(${settings.background.images[settings.background.currentImageIndex]?.url})`
-              : 'none'
+                ? `url(${settings.background.images[settings.background.currentImageIndex]?.url})`
+                : 'none'
           }}
         />
-        
+
         {/* Overlay */}
-        <div className={`absolute inset-0 ${
-          isDarkMode ? 'bg-black bg-opacity-60' : 'bg-black bg-opacity-40'
-        }`} />
-        
+        <div className={`absolute inset-0 ${isDarkMode ? 'bg-black/60' : 'bg-black/40'
+          }`} />
+
         {/* Settings Button */}
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className={`fixed ${isAndroid() ? 'top-12' : 'top-4'} right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${
-            isDarkMode 
-              ? 'bg-gray-800 bg-opacity-75 hover:bg-gray-700/90 text-gray-200' 
-              : `bg-white bg-opacity-75 hover:bg-white/90 ${themeColors.text}`
-          }`}
-          title="Pengaturan"
-        >
-          <Cog6ToothIcon className="h-6 w-6" />
-        </button>
+        {!isDesktopLayout && (
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className={`fixed ${isAndroid() ? 'top-12' : 'top-4'} right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${isDarkMode
+              ? 'bg-gray-800/75 hover:bg-gray-700/90 text-gray-200'
+              : `bg-white/75 hover:bg-white/90 ${themeColors.text}`
+              }`}
+            title="Pengaturan"
+          >
+            <Cog6ToothIcon className="h-6 w-6" />
+          </button>
+        )}
 
         {/* Enhanced Location Detection Status */}
         {locationDetection.isDetecting && (
           <div className={`fixed ${isAndroid() ? 'top-16' : 'top-4'} left-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300`}>
-            <div className={`p-4 rounded-xl shadow-xl border ${
-              isDarkMode 
-                ? 'bg-gray-800 border-gray-700' 
-                : 'bg-white border-gray-200'
-            }`}>
+            <div className={`p-4 rounded-xl shadow-xl border ${isDarkMode
+              ? 'bg-gray-800 border-gray-700'
+              : 'bg-white border-gray-200'
+              }`}>
               <div className="flex items-center space-x-3">
                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-indigo-600"></div>
                 <div>
@@ -596,48 +605,69 @@ function App() {
           </div>
         )}
 
-        
+
         {/* Main Content */}
-        <div className={`min-h-screen flex ${isDesktopLayout ? 'items-stretch' : 'items-center'} justify-center p-4 relative z-10`}>
-          <div className={`w-full ${isDesktopLayout ? 'max-w-6xl' : 'max-w-md'}`}>
+        <div className={`min-h-screen flex ${isDesktopLayout ? 'items-stretch p-0' : 'items-center p-4'} justify-center relative z-10`}>
+          <div className={`w-full ${isDesktopLayout ? 'max-w-[1920px]' : 'max-w-md'}`}>
             {loading ? (
               loadingContent
             ) : error ? (
               errorContent
             ) : isDesktopLayout ? (
-              <DesktopMasjidView2
+              <DesktopMasjidView4
                 currentTime={currentTime}
                 selectedDate={selectedDate}
-                locationName={selectedLocation?.name || 'Jam Shalat'}
-                subtitle="Alamat masjid belum diatur"
-                message="Pengumuman: shalat berjamaah akan dimulai 10 menit sebelum adzan. Mohon merapatkan shaf."
+                locationName={settings.masjid.name || selectedLocation?.name || 'Jam Shalat'}
+                subtitle={settings.masjid.address || (selectedLocation?.name ? `Jadwal Shalat untuk ${selectedLocation.name}` : undefined)}
+                message=""
                 prayerTimes={prayerTimes}
+                tickerMessages={settings.masjid.runningText}
+                fridayDuty={settings.masjid.fridayDuty}
+                runningTextMode={settings.masjid.runningTextMode || 'marquee'}
+                runningTextSpeed={settings.masjid.runningTextSpeed || 'normal'}
+                iqamahOffsets={
+                  settings.masjid.iqamahMode === 'unified'
+                    ? {
+                      Subuh: settings.masjid.iqamahUnified,
+                      Dzuhur: settings.masjid.iqamahUnified,
+                      Ashar: settings.masjid.iqamahUnified,
+                      Maghrib: settings.masjid.iqamahUnified,
+                      Isya: settings.masjid.iqamahUnified
+                    }
+                    : {
+                      Subuh: settings.masjid.iqamahDetailed.subuh,
+                      Dzuhur: settings.masjid.iqamahDetailed.dzuhur,
+                      Ashar: settings.masjid.iqamahDetailed.ashar,
+                      Maghrib: settings.masjid.iqamahDetailed.maghrib,
+                      Isya: settings.masjid.iqamahDetailed.isya
+                    }
+                }
+                onOpenSettings={() => setIsSettingsOpen(true)}
+                isDarkMode={isDarkMode}
                 themeColors={themeColors}
               />
             ) : (
               <div className="space-y-4">
                 {/* Header Card */}
-                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${
-                  isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
-                }`}>
+                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${isDarkMode ? 'bg-gray-800/75' : 'bg-white/75'
+                  }`}>
                   {/* Logo */}
                   <div className="text-center mb-4">
-                    <img 
-                      src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"} 
-                      alt="Jam Shalat App Logo" 
+                    <img
+                      src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"}
+                      alt="Jam Shalat App Logo"
                       className="h-12 w-auto mx-auto"
                     />
                   </div>
 
                   {/* Time Display Only */}
                   <div className="p-0 bg-white/30 rounded-xl text-center">
-                    <div className={`text-3xl sm:text-4xl font-bold ${
-                      isDarkMode ? themeColors.textLight : themeColors.text
-                    }`}>
-                      {currentTime.toLocaleTimeString('id-ID', { 
-                        hour: '2-digit', 
-                        minute: '2-digit', 
-                        second: '2-digit', 
+                    <div className={`text-3xl sm:text-4xl font-bold ${isDarkMode ? themeColors.textLight : themeColors.text
+                      }`}>
+                      {currentTime.toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
                         hour12: false,
                         hourCycle: 'h23'
                       }).replace(/\./g, ':')}
@@ -646,23 +676,21 @@ function App() {
                 </div>
 
                 {/* Date Slider Card */}
-                <div className={`p-4 rounded-2xl shadow-xl backdrop-blur-md relative ${
-                  isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
-                }`}>
+                <div className={`p-4 rounded-2xl shadow-xl backdrop-blur-md relative ${isDarkMode ? 'bg-gray-800/75' : 'bg-white/75'
+                  }`}>
                   {/* Today shortcut button - Absolute positioned */}
                   {selectedDate.toDateString() !== new Date().toDateString() && (
                     <button
                       onClick={() => handleDateSelect(new Date())}
-                      className={`absolute top-3 right-3 px-2 py-1 text-xs font-medium rounded border transition-colors ${
-                        settings.themeColor === 'gray' ? 'border-gray-600 text-gray-600 hover:bg-gray-50' :
+                      className={`absolute top-3 right-3 px-2 py-1 text-xs font-medium rounded border transition-colors ${settings.themeColor === 'gray' ? 'border-gray-600 text-gray-600 hover:bg-gray-50' :
                         settings.themeColor === 'red' ? 'border-red-600 text-red-600 hover:bg-red-50' :
-                        settings.themeColor === 'yellow' ? 'border-yellow-600 text-yellow-600 hover:bg-yellow-50' :
-                        settings.themeColor === 'green' ? 'border-green-600 text-green-600 hover:bg-green-50' :
-                        settings.themeColor === 'blue' ? 'border-blue-600 text-blue-600 hover:bg-blue-50' :
-                        settings.themeColor === 'purple' ? 'border-purple-600 text-purple-600 hover:bg-purple-50' :
-                        settings.themeColor === 'pink' ? 'border-pink-600 text-pink-600 hover:bg-pink-50' :
-                        'border-indigo-600 text-indigo-600 hover:bg-indigo-50'
-                      } ${isDarkMode ? 'hover:bg-gray-700/50' : ''}`}
+                          settings.themeColor === 'yellow' ? 'border-yellow-600 text-yellow-600 hover:bg-yellow-50' :
+                            settings.themeColor === 'green' ? 'border-green-600 text-green-600 hover:bg-green-50' :
+                              settings.themeColor === 'blue' ? 'border-blue-600 text-blue-600 hover:bg-blue-50' :
+                                settings.themeColor === 'purple' ? 'border-purple-600 text-purple-600 hover:bg-purple-50' :
+                                  settings.themeColor === 'pink' ? 'border-pink-600 text-pink-600 hover:bg-pink-50' :
+                                    'border-indigo-600 text-indigo-600 hover:bg-indigo-50'
+                        } ${isDarkMode ? 'hover:bg-gray-700/50' : ''}`}
                     >
                       Hari Ini
                     </button>
@@ -671,9 +699,8 @@ function App() {
                   <div className="text-center mb-4">
                     <button
                       onClick={() => setShowDatePicker(true)}
-                      className={`text-lg font-semibold hover:opacity-75 transition-opacity ${
-                        isDarkMode ? 'text-gray-200' : 'text-gray-800'
-                      }`}
+                      className={`text-lg font-semibold hover:opacity-75 transition-opacity ${isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                        }`}
                     >
                       {getSliderDisplayMonth(selectedDate)}
                     </button>
@@ -681,9 +708,8 @@ function App() {
 
                   {/* Hijri Date */}
                   <div className="text-center mb-4">
-                    <div className={`text-sm font-medium ${
-                      isDarkMode ? 'text-gray-300' : themeColors.text
-                    }`}>
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : themeColors.text
+                      }`}>
                       {new Intl.DateTimeFormat('id-u-ca-islamic', {
                         day: 'numeric',
                         month: 'long',
@@ -701,7 +727,7 @@ function App() {
                       {getDateSliderDates(selectedDate, true).map((date, index) => {
                         const isActive = date.toDateString() === selectedDate.toDateString();
                         const distance = Math.abs(index - 2); // Center is index 2 for mobile
-                        
+
                         let opacity = '100';
                         if (distance === 1) opacity = '75';
                         if (distance === 2) opacity = '50';
@@ -710,28 +736,26 @@ function App() {
                           <button
                             key={date.toISOString()}
                             onClick={() => handleDateSelect(date)}
-                            className={`w-10 h-10 rounded-lg font-semibold transition-all duration-200 hover:scale-105 text-sm ${
-                              isActive
-                                ? `${themeColors.bg} text-white shadow-lg`
-                                : `${
-                                    isDarkMode 
-                                      ? `bg-gray-700 text-gray-300 hover:bg-gray-600` 
-                                      : `bg-gray-100 text-gray-700 hover:bg-gray-200`
-                                  } opacity-${opacity}`
-                            }`}
+                            className={`w-10 h-10 rounded-lg font-semibold transition-all duration-200 hover:scale-105 text-sm ${isActive
+                              ? `${themeColors.bg} text-white shadow-lg`
+                              : `${isDarkMode
+                                ? `bg-gray-700 text-gray-300 hover:bg-gray-600`
+                                : `bg-gray-100 text-gray-700 hover:bg-gray-200`
+                              } opacity-${opacity}`
+                              }`}
                           >
                             {date.getDate()}
                           </button>
                         );
                       })}
                     </div>
-                    
+
                     {/* XS+ screens: 7 dates */}
                     <div className="hidden xs:flex space-x-2">
                       {getDateSliderDates(selectedDate, false).map((date, index) => {
                         const isActive = date.toDateString() === selectedDate.toDateString();
                         const distance = Math.abs(index - 3); // Center is index 3 for desktop
-                        
+
                         let opacity = '100';
                         if (distance === 1) opacity = '75';
                         if (distance === 2) opacity = '50';
@@ -741,15 +765,13 @@ function App() {
                           <button
                             key={date.toISOString()}
                             onClick={() => handleDateSelect(date)}
-                            className={`w-12 h-12 rounded-lg font-semibold transition-all duration-200 hover:scale-105 ${
-                              isActive
-                                ? `${themeColors.bg} text-white shadow-lg`
-                                : `${
-                                    isDarkMode 
-                                      ? `bg-gray-700 text-gray-300 hover:bg-gray-600` 
-                                      : `bg-gray-100 text-gray-700 hover:bg-gray-200`
-                                  } opacity-${opacity}`
-                            }`}
+                            className={`w-12 h-12 rounded-lg font-semibold transition-all duration-200 hover:scale-105 ${isActive
+                              ? `${themeColors.bg} text-white shadow-lg`
+                              : `${isDarkMode
+                                ? `bg-gray-700 text-gray-300 hover:bg-gray-600`
+                                : `bg-gray-100 text-gray-700 hover:bg-gray-200`
+                              } opacity-${opacity}`
+                              }`}
                           >
                             {date.getDate()}
                           </button>
@@ -760,186 +782,182 @@ function App() {
                 </div>
 
                 {/* Prayer Times Card */}
-                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${
-                  isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
-                }`}>
+                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
+                  }`}>
 
-                {selectedLocation && (
-                  <>
-                    {/* Location and Schedule Label Row */}
-                    <div className={`px-3 py-2 mb-4 flex flex-col xs:flex-row xs:items-center xs:justify-between rounded-lg transition-colors ${
-                      isDarkMode
+                  {selectedLocation && (
+                    <>
+                      {/* Location and Schedule Label Row */}
+                      <div className={`px-3 py-2 mb-4 flex flex-row items-center justify-between rounded-lg transition-colors ${isDarkMode
                         ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
                         : 'bg-white/50 hover:bg-white/70 text-gray-800'
-                    } backdrop-blur-sm`}>
-                      <div className="flex items-center">
-                        <span className={`font-medium ${
-                          isDarkMode ? 'text-gray-100' : 'text-gray-800'
-                        }`}>
-                          {selectedLocation.name}
+                        } backdrop-blur-sm`}>
+                        <div className="flex items-center">
+                          <span className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                            }`}>
+                            {selectedLocation.name}
+                          </span>
+                        </div>
+                        <span className={`font-semibold text-sm ${isDarkMode ? 'text-gray-200' : themeColors.text
+                          }`}>
+                          {(() => {
+                            const currentTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                            const allPrayersPassed = prayerTimes.every(prayer => {
+                              return prayer.timeInMinutes <= currentTotalMinutes;
+                            });
+                            return allPrayersPassed ? 'Jadwal Besok:' : 'Jadwal hari ini:';
+                          })()}
                         </span>
                       </div>
-                      <span className={`font-semibold text-sm ${
-                        isDarkMode ? 'text-gray-200' : themeColors.text
-                      }`}>
-                        {(() => {
-                          const currentTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                          const allPrayersPassed = prayerTimes.every(prayer => {
-                            return prayer.timeInMinutes <= currentTotalMinutes;
-                          });
-                          return allPrayersPassed ? 'Jadwal Besok:' : 'Jadwal hari ini:';
-                        })()} 
-                      </span>
-                    </div>
 
-                    {prayerTimesLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
-                        <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
-                          Memuat jadwal shalat...
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-0">
-                        {prayerTimes
-                        .filter(prayer => {
-                          // Always show main prayers
-                          if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
-                          // Show Terbit and Dhuha based on settings
-                          if (prayer.name === 'Terbit') return settings.showTerbit;
-                          if (prayer.name === 'Dhuha') return settings.showDhuha;
-                          return true;
-                        })
-                        .map((prayer) => (
-                          <div 
-                            key={prayer.name}
-                            className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${
-                              prayer.isNext 
-                                ? `${themeColors.bg} text-white` 
-                                : isDarkMode
-                                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
-                                : 'bg-white/50 hover:bg-white/70 text-gray-800'
-                            } backdrop-blur-sm`}
-                          >
-                            <div className="flex items-center">
-                              <span className={`font-medium ${
-                                prayer.isNext 
-                                  ? 'text-white' 
+                      {prayerTimesLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
+                          <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
+                            Memuat jadwal shalat...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-0">
+                          {prayerTimes
+                            .filter(prayer => {
+                              // Always show main prayers
+                              if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
+                              // Show Terbit and Dhuha based on settings
+                              if (prayer.name === 'Terbit') return settings.showTerbit;
+                              if (prayer.name === 'Dhuha') return settings.showDhuha;
+                              return true;
+                            })
+                            .map((prayer) => (
+                              <div
+                                key={prayer.name}
+                                className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${prayer.isNext
+                                  ? `${themeColors.bg} text-white`
                                   : isDarkMode
-                                  ? 'text-gray-100'
-                                  : 'text-gray-800'
-                              }`}>
-                                {prayer.name}
-                              </span>
-                            </div>
-                            <span className={`font-semibold ${
-                              prayer.isNext 
-                                ? 'text-white' 
-                                : isDarkMode
-                                ? 'text-gray-200'
-                                : themeColors.text
-                            }`}>
-                              {prayer.time}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+                                    ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
+                                    : 'bg-white/50 hover:bg-white/70 text-gray-800'
+                                  } backdrop-blur-sm`}
+                              >
+                                <div className="flex items-center">
+                                  <span className={`font-medium ${prayer.isNext
+                                    ? 'text-white'
+                                    : isDarkMode
+                                      ? 'text-gray-100'
+                                      : 'text-gray-800'
+                                    }`}>
+                                    {prayer.name}
+                                  </span>
+                                </div>
+                                <span className={`font-semibold ${prayer.isNext
+                                  ? 'text-white'
+                                  : isDarkMode
+                                    ? 'text-gray-200'
+                                    : themeColors.text
+                                  }`}>
+                                  {prayer.time}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
-      </div>
-      
+      </div >
+
       {/* Settings Modal */}
-      <SettingsModal
+      < SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={() => setIsSettingsOpen(false)
+        }
         settings={settings}
         onSave={handleSaveSettings}
-        locations={locations.map(loc => ({
-          id: loc.id,
-          name: loc.name,
-          lokasi: loc.name,
-          koordinat: {
-            lat: '0',
-            lon: '0'
-          }
-        }))}
+        locations={
+          locations.map(loc => ({
+            id: loc.id,
+            name: loc.name,
+            lokasi: loc.name,
+            koordinat: {
+              lat: '0',
+              lon: '0'
+            }
+          }))
+        }
         selectedLocationId={selectedLocation?.id || null}
         onLocationChange={handleLocationChange}
         isDarkMode={isDarkMode}
       />
 
       {/* Custom Date Picker Modal */}
-      {showDatePicker && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-2xl shadow-xl max-w-sm w-full ${
-            isDarkMode ? 'bg-gray-800' : 'bg-white'
-          }`}>
-            <h3 className={`text-lg font-semibold mb-4 ${
-              isDarkMode ? 'text-gray-200' : 'text-gray-800'
-            }`}>
-              Pilih Tanggal
-            </h3>
-            
-            <input
-              type="date"
-              value={selectedDate.toISOString().split('T')[0]}
-              onChange={(e) => {
-                const newDate = new Date(e.target.value);
-                handleDateSelect(newDate);
-                setShowDatePicker(false);
-              }}
-              className={`w-full p-3 rounded-lg border ${
-                isDarkMode 
-                  ? 'bg-gray-700 border-gray-600 text-gray-200' 
+      {
+        showDatePicker && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`p-6 rounded-2xl shadow-xl max-w-sm w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+              <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                }`}>
+                Pilih Tanggal
+              </h3>
+
+              <input
+                type="date"
+                value={selectedDate.toISOString().split('T')[0]}
+                onChange={(e) => {
+                  const newDate = new Date(e.target.value);
+                  handleDateSelect(newDate);
+                  setShowDatePicker(false);
+                }}
+                className={`w-full p-3 rounded-lg border ${isDarkMode
+                  ? 'bg-gray-700 border-gray-600 text-gray-200'
                   : 'bg-white border-gray-300 text-gray-800'
-              } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-            />
-            
-            <div className="flex space-x-3 mt-4">
-              <button
-                onClick={() => setShowDatePicker(false)}
-                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
-                  isDarkMode 
-                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+              />
+
+              <div className="flex space-x-3 mt-4">
+                <button
+                  onClick={() => setShowDatePicker(false)}
+                  className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${isDarkMode
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
                     : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Batal
-              </button>
+                    }`}
+                >
+                  Batal
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {/* Photo Credit - Only show for Unsplash images */}
-      {currentImage?.author && settings.background.type === 'auto' && (
-        <div className={`fixed ${isAndroid() ? 'bottom-6' : 'bottom-0'} left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20`}>
-          <span>Photo by </span>
-          <a 
-            href={currentImage.authorUrl || `https://unsplash.com/@${currentImage.authorUsername}?utm_source=JamShalatApp&utm_medium=referral`}
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-300 hover:text-blue-100 mx-1"
-          >
-            {currentImage.author}
-          </a>
-          <span> on </span>
-          <a 
-            href="https://unsplash.com?utm_source=JamShalatApp&utm_medium=referral" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-300 hover:text-blue-100 ml-1"
-          >
-            Unsplash
-          </a>
-        </div>
-      )}
+      {/* Photo Credit - Only show for Unsplash images and mobile layout */}
+      {
+        !isDesktopLayout && currentImage?.author && settings.background.type === 'auto' && (
+          <div className={`fixed ${isAndroid() ? 'bottom-6' : 'bottom-0'} left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20`}>
+            <span>Photo by </span>
+            <a
+              href={currentImage.authorUrl || `https://unsplash.com/@${currentImage.authorUsername}?utm_source=JamShalatApp&utm_medium=referral`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-blue-100 mx-1"
+            >
+              {currentImage.author}
+            </a>
+            <span> on </span>
+            <a
+              href="https://unsplash.com?utm_source=JamShalatApp&utm_medium=referral"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-blue-100 ml-1"
+            >
+              Unsplash
+            </a>
+          </div>
+        )
+      }
     </>
   );
 }

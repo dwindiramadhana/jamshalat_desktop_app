@@ -32,3 +32,11 @@ android/build/
 
 # Keystore (keep template, exclude real ones in production)
 android-release-key.jks
+
+# Tauri generated Android files (using Capacitor instead)
+src-tauri/gen/android/
+
+# Environment variables
+.env
+.env.local
+.env.*.local

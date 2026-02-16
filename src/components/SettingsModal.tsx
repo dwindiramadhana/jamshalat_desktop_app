@@ -16,7 +16,7 @@ interface SettingsModalProps {
   isDarkMode: boolean;
 }
 
-type TabType = 'location' | 'appearance' | 'about';
+type TabType = 'location' | 'appearance' | 'masjid' | 'about';
 
 // Unsplash API response types
 interface UnsplashImageResult {
@@ -68,8 +68,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     },
     showTerbit: settings.showTerbit ?? true,
     showDhuha: settings.showDhuha ?? true,
+    masjid: {
+      name: settings.masjid?.name || '',
+      address: settings.masjid?.address || '',
+      runningText: settings.masjid?.runningText || [],
+      runningTextMode: settings.masjid?.runningTextMode || 'marquee',
+      runningTextSpeed: settings.masjid?.runningTextSpeed || 'normal',
+      iqamahMode: settings.masjid?.iqamahMode || 'unified',
+      iqamahUnified: settings.masjid?.iqamahUnified || 10,
+      iqamahDetailed: settings.masjid?.iqamahDetailed || { subuh: 10, dzuhur: 10, ashar: 10, maghrib: 10, isya: 10 },
+      fridayDuty: settings.masjid?.fridayDuty || { khatib: '', imam: '', bilal: '' },
+    }
   }));
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [accordionState, setAccordionState] = useState({
@@ -107,7 +118,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleImageUpload = useCallback((files: FileList | File[]) => {
     const fileArray = Array.from(files);
     const imageFiles = fileArray.filter(file => file.type.startsWith('image/'));
-    
+
     if (imageFiles.length === 0) return;
 
     imageFiles.forEach(file => {
@@ -159,7 +170,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const files = e.dataTransfer.files;
     if (files) {
       handleImageUpload(files);
@@ -170,7 +181,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setLocalSettings(prev => {
       const newImages = prev.background.images.filter((_, i) => i !== index);
       const newCurrentIndex = Math.min(prev.background.currentImageIndex, newImages.length - 1);
-      
+
       return {
         ...prev,
         background: {
@@ -185,7 +196,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   // Search Unsplash for images
   const searchUnsplash = useCallback(async (query: string, page: number = 1) => {
     if (!query.trim()) return;
-    
+
     try {
       setIsLoading(true);
       const response = await axios.get<UnsplashSearchResponse>(
@@ -260,89 +271,97 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className={`relative transform overflow-hidden rounded-lg text-left shadow-xl transition-all w-full max-w-md sm:max-w-lg md:max-w-xl my-8 ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white'
-              }`}>
-                <div className={`px-4 pb-4 pt-5 sm:p-6 sm:pb-4 ${
-                  isDarkMode ? 'bg-gray-800' : 'bg-white'
+              <Dialog.Panel className={`relative transform overflow-hidden rounded-lg text-left shadow-xl transition-all w-full max-w-md sm:max-w-lg md:max-w-xl my-8 ${isDarkMode ? 'bg-gray-800' : 'bg-white'
                 }`}>
+                <div className={`px-4 pb-4 pt-5 sm:p-6 sm:pb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-white'
+                  }`}>
                   <div className="sm:flex sm:items-start">
                     <div className="mt-3 text-left sm:ml-4 sm:mt-0 w-full">
-                      <Dialog.Title as="h3" className={`text-base font-semibold leading-6 mb-4 ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
+                      <Dialog.Title as="h3" className={`text-base font-semibold leading-6 mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
                         Pengaturan
                       </Dialog.Title>
-                      
+
                       {/* Tab Navigation */}
                       <div className="border-b border-gray-200 mb-4">
                         <nav className="-mb-px flex space-x-8">
                           <button
                             onClick={() => handleTabChange('location')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === 'location'
-                                ? `${
-                                  settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
-                                  settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'location'
+                              ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
+                                settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
                                   settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
-                                  settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
-                                  settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
-                                  settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
-                                  settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
-                                  'border-indigo-500 text-indigo-600'
-                                }`
-                                : `border-transparent ${
-                                  isDarkMode 
-                                    ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500' 
-                                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`
-                            }`}
+                                    settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
+                                      settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
+                                        settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
+                                          settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
+                                            'border-indigo-500 text-indigo-600'
+                              }`
+                              : `border-transparent ${isDarkMode
+                                ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
+                                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`
+                              }`}
                           >
                             Lokasi
                           </button>
                           <button
                             onClick={() => handleTabChange('appearance')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === 'appearance'
-                                ? `${
-                                  settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
-                                  settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'appearance'
+                              ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
+                                settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
                                   settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
-                                  settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
-                                  settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
-                                  settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
-                                  settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
-                                  'border-indigo-500 text-indigo-600'
-                                }`
-                                : `border-transparent ${
-                                  isDarkMode 
-                                    ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500' 
-                                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`
-                            }`}
+                                    settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
+                                      settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
+                                        settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
+                                          settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
+                                            'border-indigo-500 text-indigo-600'
+                              }`
+                              : `border-transparent ${isDarkMode
+                                ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
+                                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`
+                              }`}
                           >
                             Tampilan
                           </button>
                           <button
-                            onClick={() => handleTabChange('about')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === 'about'
-                                ? `${
-                                  settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
-                                  settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
+                            onClick={() => handleTabChange('masjid')}
+                            className={`hidden xl:block py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'masjid'
+                              ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
+                                settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
                                   settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
-                                  settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
-                                  settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
-                                  settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
-                                  settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
-                                  'border-indigo-500 text-indigo-600'
-                                }`
-                                : `border-transparent ${
-                                  isDarkMode 
-                                    ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500' 
-                                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`
-                            }`}
+                                    settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
+                                      settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
+                                        settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
+                                          settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
+                                            'border-indigo-500 text-indigo-600'
+                              }`
+                              : `border-transparent ${isDarkMode
+                                ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
+                                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`
+                              }`}
+                          >
+                            Masjid
+                          </button>
+                          <button
+                            onClick={() => handleTabChange('about')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'about'
+                              ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
+                                settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
+                                  settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
+                                    settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
+                                      settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
+                                        settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
+                                          settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
+                                            'border-indigo-500 text-indigo-600'
+                              }`
+                              : `border-transparent ${isDarkMode
+                                ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
+                                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`
+                              }`}
                           >
                             Tentang
                           </button>
@@ -365,7 +384,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 onChange={(e) => setSearchQuery(e.target.value)}
                               />
                             </div>
-                            
+
                             {filteredLocations.length > 0 && (
                               <div className="max-h-60 overflow-y-auto border rounded-md">
                                 <ul className="divide-y divide-gray-200">
@@ -373,24 +392,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <li key={location.id}>
                                       <button
                                         type="button"
-                                        className={`w-full text-left px-4 py-2 text-sm ${
-                                          selectedLocationId === location.id
-                                            ? `${
-                                              settings.themeColor === 'gray' ? 'bg-gray-100 text-gray-700' :
-                                              settings.themeColor === 'red' ? 'bg-red-100 text-red-700' :
+                                        className={`w-full text-left px-4 py-2 text-sm ${selectedLocationId === location.id
+                                          ? `${settings.themeColor === 'gray' ? 'bg-gray-100 text-gray-700' :
+                                            settings.themeColor === 'red' ? 'bg-red-100 text-red-700' :
                                               settings.themeColor === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
-                                              settings.themeColor === 'green' ? 'bg-green-100 text-green-700' :
-                                              settings.themeColor === 'blue' ? 'bg-blue-100 text-blue-700' :
-                                              settings.themeColor === 'purple' ? 'bg-purple-100 text-purple-700' :
-                                              settings.themeColor === 'pink' ? 'bg-pink-100 text-pink-700' :
-                                              'bg-indigo-100 text-indigo-700'
-                                            }`
-                                            : `${
-                                              isDarkMode 
-                                                ? 'text-gray-300 hover:bg-gray-700' 
-                                                : 'text-gray-700 hover:bg-gray-50'
-                                            }`
-                                        }`}
+                                                settings.themeColor === 'green' ? 'bg-green-100 text-green-700' :
+                                                  settings.themeColor === 'blue' ? 'bg-blue-100 text-blue-700' :
+                                                    settings.themeColor === 'purple' ? 'bg-purple-100 text-purple-700' :
+                                                      settings.themeColor === 'pink' ? 'bg-pink-100 text-pink-700' :
+                                                        'bg-indigo-100 text-indigo-700'
+                                          }`
+                                          : `${isDarkMode
+                                            ? 'text-gray-300 hover:bg-gray-700'
+                                            : 'text-gray-700 hover:bg-gray-50'
+                                          }`
+                                          }`}
                                         onClick={() => handleLocationSelect(location.id)}
                                       >
                                         {location.name}
@@ -432,16 +448,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           id="show-terbit"
                                           name="show-terbit"
                                           type="checkbox"
-                                          className={`h-4 w-4 border-gray-300 rounded ${
-                                            settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
+                                          className={`h-4 w-4 border-gray-300 rounded ${settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
                                             settings.themeColor === 'red' ? 'text-red-600 focus:ring-red-500' :
-                                            settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
-                                            settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
-                                            settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
-                                            settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
-                                            settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
-                                            'text-indigo-600 focus:ring-indigo-500'
-                                          }`}
+                                              settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
+                                                settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
+                                                  settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
+                                                    settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
+                                                      settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
+                                                        'text-indigo-600 focus:ring-indigo-500'
+                                            }`}
                                           checked={localSettings.showTerbit}
                                           onChange={(e) => {
                                             setLocalSettings(prev => ({
@@ -459,16 +474,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           id="show-dhuha"
                                           name="show-dhuha"
                                           type="checkbox"
-                                          className={`h-4 w-4 border-gray-300 rounded ${
-                                            settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
+                                          className={`h-4 w-4 border-gray-300 rounded ${settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
                                             settings.themeColor === 'red' ? 'text-red-600 focus:ring-red-500' :
-                                            settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
-                                            settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
-                                            settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
-                                            settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
-                                            settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
-                                            'text-indigo-600 focus:ring-indigo-500'
-                                          }`}
+                                              settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
+                                                settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
+                                                  settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
+                                                    settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
+                                                      settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
+                                                        'text-indigo-600 focus:ring-indigo-500'
+                                            }`}
                                           checked={localSettings.showDhuha}
                                           onChange={(e) => {
                                             setLocalSettings(prev => ({
@@ -495,16 +509,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           id="background-auto"
                                           name="background-type"
                                           type="radio"
-                                          className={`h-4 w-4 ${
-                                            settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
+                                          className={`h-4 w-4 ${settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
                                             settings.themeColor === 'red' ? 'text-red-600 focus:ring-red-500' :
-                                            settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
-                                            settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
-                                            settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
-                                            settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
-                                            settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
-                                            'text-indigo-600 focus:ring-indigo-500'
-                                          }`}
+                                              settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
+                                                settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
+                                                  settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
+                                                    settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
+                                                      settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
+                                                        'text-indigo-600 focus:ring-indigo-500'
+                                            }`}
                                           checked={localSettings.background.type === 'auto'}
                                           onChange={() => handleBackgroundTypeChange('auto')}
                                         />
@@ -517,16 +530,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           id="background-static"
                                           name="background-type"
                                           type="radio"
-                                          className={`h-4 w-4 ${
-                                            settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
+                                          className={`h-4 w-4 ${settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
                                             settings.themeColor === 'red' ? 'text-red-600 focus:ring-red-500' :
-                                            settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
-                                            settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
-                                            settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
-                                            settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
-                                            settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
-                                            'text-indigo-600 focus:ring-indigo-500'
-                                          }`}
+                                              settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
+                                                settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
+                                                  settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
+                                                    settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
+                                                      settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
+                                                        'text-indigo-600 focus:ring-indigo-500'
+                                            }`}
                                           checked={localSettings.background.type === 'static'}
                                           onChange={() => handleBackgroundTypeChange('static')}
                                         />
@@ -602,11 +614,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <button
                                           key={color.value}
                                           type="button"
-                                          className={`flex items-center p-2 rounded-md border transition-all text-xs ${
-                                            (localSettings.themeColor || 'indigo') === color.value
-                                              ? 'border-gray-400 bg-gray-50 ring-1 ring-gray-300'
-                                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                          }`}
+                                          className={`flex items-center p-2 rounded-md border transition-all text-xs ${(localSettings.themeColor || 'indigo') === color.value
+                                            ? 'border-gray-400 bg-gray-50 ring-1 ring-gray-300'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            }`}
                                           onClick={() => {
                                             setLocalSettings(prev => ({
                                               ...prev,
@@ -634,16 +645,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         id="dark-mode"
                                         name="dark-mode"
                                         type="checkbox"
-                                        className={`h-4 w-4 border-gray-300 rounded ${
-                                          settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
+                                        className={`h-4 w-4 border-gray-300 rounded ${settings.themeColor === 'gray' ? 'text-gray-600 focus:ring-gray-500' :
                                           settings.themeColor === 'red' ? 'text-red-600 focus:ring-red-500' :
-                                          settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
-                                          settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
-                                          settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
-                                          settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
-                                          settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
-                                          'text-indigo-600 focus:ring-indigo-500'
-                                        }`}
+                                            settings.themeColor === 'yellow' ? 'text-yellow-600 focus:ring-yellow-500' :
+                                              settings.themeColor === 'green' ? 'text-green-600 focus:ring-green-500' :
+                                                settings.themeColor === 'blue' ? 'text-blue-600 focus:ring-blue-500' :
+                                                  settings.themeColor === 'purple' ? 'text-purple-600 focus:ring-purple-500' :
+                                                    settings.themeColor === 'pink' ? 'text-pink-600 focus:ring-pink-500' :
+                                                      'text-indigo-600 focus:ring-indigo-500'
+                                          }`}
                                         checked={localSettings.darkMode || false}
                                         onChange={(e) => {
                                           setLocalSettings(prev => ({
@@ -702,16 +712,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           />
                                           <button
                                             type="button"
-                                            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white disabled:opacity-50 ${
-                                              settings.themeColor === 'gray' ? 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500' :
+                                            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white disabled:opacity-50 ${settings.themeColor === 'gray' ? 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500' :
                                               settings.themeColor === 'red' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' :
-                                              settings.themeColor === 'yellow' ? 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500' :
-                                              settings.themeColor === 'green' ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' :
-                                              settings.themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' :
-                                              settings.themeColor === 'purple' ? 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500' :
-                                              settings.themeColor === 'pink' ? 'bg-pink-600 hover:bg-pink-700 focus:ring-pink-500' :
-                                              'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
-                                            } focus:outline-none focus:ring-2 focus:ring-offset-2`}
+                                                settings.themeColor === 'yellow' ? 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500' :
+                                                  settings.themeColor === 'green' ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' :
+                                                    settings.themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' :
+                                                      settings.themeColor === 'purple' ? 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500' :
+                                                        settings.themeColor === 'pink' ? 'bg-pink-600 hover:bg-pink-700 focus:ring-pink-500' :
+                                                          'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
+                                              } focus:outline-none focus:ring-2 focus:ring-offset-2`}
                                             onClick={() => {
                                               if (localSettings.background.unsplashQuery) {
                                                 searchUnsplash(localSettings.background.unsplashQuery);
@@ -723,7 +732,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           </button>
                                         </div>
                                       </div>
-                                      
+
                                       {/* Scrollable Images Grid */}
                                       {localSettings.background.images.length > 0 && (
                                         <div className="mt-4">
@@ -733,8 +742,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           <div className="max-h-48 overflow-y-auto border rounded-md p-2">
                                             <div className="grid grid-cols-3 gap-3">
                                               {localSettings.background.images.map((image, index) => (
-                                                <div 
-                                                  key={`unsplash-${image.imageId || index}`} 
+                                                <div
+                                                  key={`unsplash-${image.imageId || index}`}
                                                   className="relative group cursor-move"
                                                   draggable={true}
                                                   onDragStart={(e) => {
@@ -756,13 +765,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
                                                     const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
                                                     const targetIndex = index;
-                                                    
+
                                                     if (draggedIndex !== targetIndex) {
                                                       const newImages = [...localSettings.background.images];
                                                       const draggedImage = newImages[draggedIndex];
                                                       newImages.splice(draggedIndex, 1);
                                                       newImages.splice(targetIndex, 0, draggedImage);
-                                                      
+
                                                       setLocalSettings(prev => ({
                                                         ...prev,
                                                         background: {
@@ -778,9 +787,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                       src={image.url}
                                                       alt={`Background ${index + 1}`}
                                                       className="w-full h-full object-cover"
+                                                      referrerPolicy="no-referrer"
                                                     />
                                                     {/* Drag handle indicator */}
-                                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
                                                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <svg className="w-5 h-5 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 20 20">
                                                           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -816,7 +826,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                                         Upload Gambar
                                       </label>
-                                      <div 
+                                      <div
                                         className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400 transition-colors"
                                         onDragOver={handleDragOver}
                                         onDragEnter={handleDragEnter}
@@ -855,8 +865,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           <div className="max-h-48 overflow-y-auto border rounded-md p-2">
                                             <div className="grid grid-cols-3 gap-3">
                                               {localSettings.background.images.map((image, index) => (
-                                                <div 
-                                                  key={`custom-${image.imageId || index}`} 
+                                                <div
+                                                  key={`custom-${image.imageId || index}`}
                                                   className="relative group cursor-move"
                                                   draggable={true}
                                                   onDragStart={(e) => {
@@ -878,13 +888,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
                                                     const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
                                                     const targetIndex = index;
-                                                    
+
                                                     if (draggedIndex !== targetIndex) {
                                                       const newImages = [...localSettings.background.images];
                                                       const draggedImage = newImages[draggedIndex];
                                                       newImages.splice(draggedIndex, 1);
                                                       newImages.splice(targetIndex, 0, draggedImage);
-                                                      
+
                                                       setLocalSettings(prev => ({
                                                         ...prev,
                                                         background: {
@@ -902,7 +912,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                       className="w-full h-full object-cover"
                                                     />
                                                     {/* Drag handle indicator */}
-                                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
                                                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <svg className="w-5 h-5 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 20 20">
                                                           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -937,6 +947,336 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
                         )}
 
+                        {activeTab === 'masjid' && (
+                          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                            {/* Mosque Identity */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Identitas Masjid</h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Nama Masjid
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    placeholder="Contoh: Masjid Agung"
+                                    value={localSettings.masjid?.name || ''}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        masjid: { ...prev.masjid!, name: e.target.value }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Alamat Masjid
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    placeholder="Contoh: Jl. Merdeka No. 1"
+                                    value={localSettings.masjid?.address || ''}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        masjid: { ...prev.masjid!, address: e.target.value }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Running Text Repeater */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Teks Berjalan (Running Text)</h4>
+                              <div className="space-y-2">
+                                {(localSettings.masjid?.runningText || []).map((text, index) => (
+                                  <div key={index} className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      className="flex-1 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      placeholder={`Teks berjalan ${index + 1}`}
+                                      value={text}
+                                      onChange={(e) => {
+                                        const newRunningText = [...(localSettings.masjid?.runningText || [])];
+                                        newRunningText[index] = e.target.value;
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          masjid: { ...prev.masjid!, runningText: newRunningText }
+                                        }));
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                      onClick={() => {
+                                        const newRunningText = (localSettings.masjid?.runningText || []).filter((_, i) => i !== index);
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          masjid: { ...prev.masjid!, runningText: newRunningText }
+                                        }));
+                                      }}
+                                    >
+                                      <TrashIcon className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  className={`w-full py-2 px-3 border border-dashed border-gray-300 rounded-md text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors`}
+                                  onClick={() => {
+                                    const newRunningText = [...(localSettings.masjid?.runningText || []), ''];
+                                    setLocalSettings(prev => ({
+                                      ...prev,
+                                      masjid: { ...prev.masjid!, runningText: newRunningText }
+                                    }));
+                                  }}
+                                >
+                                  + Tambah Teks Berjalan
+                                </button>
+                              </div>
+
+                              {/* Animation Mode & Speed */}
+                              <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 gap-4">
+                                {/* Animation Mode */}
+                                <div>
+                                  <label className={`block text-xs font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Mode Animasi
+                                  </label>
+                                  <div className="space-y-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name="runningTextMode"
+                                        className="h-4 w-4 text-indigo-600"
+                                        checked={localSettings.masjid?.runningTextMode === 'marquee'}
+                                        onChange={() => {
+                                          setLocalSettings(prev => ({
+                                            ...prev,
+                                            masjid: { ...prev.masjid!, runningTextMode: 'marquee' }
+                                          }));
+                                        }}
+                                      />
+                                      <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Marquee (Scroll)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name="runningTextMode"
+                                        className="h-4 w-4 text-indigo-600"
+                                        checked={localSettings.masjid?.runningTextMode === 'fade'}
+                                        onChange={() => {
+                                          setLocalSettings(prev => ({
+                                            ...prev,
+                                            masjid: { ...prev.masjid!, runningTextMode: 'fade' }
+                                          }));
+                                        }}
+                                      />
+                                      <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Fade In/Out</span>
+                                    </label>
+                                  </div>
+                                </div>
+
+                                {/* Speed Control */}
+                                <div>
+                                  <label className={`block text-xs font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Kecepatan
+                                  </label>
+                                  <select
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    value={localSettings.masjid?.runningTextSpeed || 'normal'}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        masjid: { ...prev.masjid!, runningTextSpeed: e.target.value as 'slow' | 'normal' | 'fast' }
+                                      }));
+                                    }}
+                                  >
+                                    <option value="slow">Lambat</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="fast">Cepat</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Iqamah Settings */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Pengaturan Iqamah (menit setelah adzan)</h4>
+                              <div className="space-y-3">
+                                {/* Mode Toggle */}
+                                <div className="flex items-center gap-4">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="iqamahMode"
+                                      className="h-4 w-4 text-indigo-600"
+                                      checked={localSettings.masjid?.iqamahMode === 'unified'}
+                                      onChange={() => {
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          masjid: { ...prev.masjid!, iqamahMode: 'unified' }
+                                        }));
+                                      }}
+                                    />
+                                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Sama Semua</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="iqamahMode"
+                                      className="h-4 w-4 text-indigo-600"
+                                      checked={localSettings.masjid?.iqamahMode === 'detailed'}
+                                      onChange={() => {
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          masjid: { ...prev.masjid!, iqamahMode: 'detailed' }
+                                        }));
+                                      }}
+                                    />
+                                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Per Waktu Sholat</span>
+                                  </label>
+                                </div>
+
+                                {/* Unified Input */}
+                                {localSettings.masjid?.iqamahMode === 'unified' && (
+                                  <div>
+                                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                      Waktu Iqamah (semua waktu sholat)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="60"
+                                      className="w-24 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      value={localSettings.masjid?.iqamahUnified || 10}
+                                      onChange={(e) => {
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          masjid: { ...prev.masjid!, iqamahUnified: parseInt(e.target.value) || 10 }
+                                        }));
+                                      }}
+                                    />
+                                    <span className={`ml-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>menit</span>
+                                  </div>
+                                )}
+
+                                {/* Detailed Inputs */}
+                                {localSettings.masjid?.iqamahMode === 'detailed' && (
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {[
+                                      { key: 'subuh', label: 'Subuh' },
+                                      { key: 'dzuhur', label: 'Dzuhur' },
+                                      { key: 'ashar', label: 'Ashar' },
+                                      { key: 'maghrib', label: 'Maghrib' },
+                                      { key: 'isya', label: 'Isya' },
+                                    ].map(prayer => (
+                                      <div key={prayer.key}>
+                                        <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                          {prayer.label}
+                                        </label>
+                                        <div className="flex items-center">
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            max="60"
+                                            className="w-16 rounded-md border-gray-300 sm:text-sm px-2 py-1 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                            value={localSettings.masjid?.iqamahDetailed?.[prayer.key as keyof typeof localSettings.masjid.iqamahDetailed] || 10}
+                                            onChange={(e) => {
+                                              setLocalSettings(prev => ({
+                                                ...prev,
+                                                masjid: {
+                                                  ...prev.masjid!,
+                                                  iqamahDetailed: {
+                                                    ...prev.masjid!.iqamahDetailed,
+                                                    [prayer.key]: parseInt(e.target.value) || 10
+                                                  }
+                                                }
+                                              }));
+                                            }}
+                                          />
+                                          <span className={`ml-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>min</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Friday Duty */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Petugas Jumat</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                  <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Khatib
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    placeholder="Nama Khatib"
+                                    value={localSettings.masjid?.fridayDuty?.khatib || ''}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        masjid: {
+                                          ...prev.masjid!,
+                                          fridayDuty: { ...prev.masjid!.fridayDuty, khatib: e.target.value }
+                                        }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Imam
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    placeholder="Nama Imam"
+                                    value={localSettings.masjid?.fridayDuty?.imam || ''}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        masjid: {
+                                          ...prev.masjid!,
+                                          fridayDuty: { ...prev.masjid!.fridayDuty, imam: e.target.value }
+                                        }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Bilal
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    placeholder="Nama Bilal"
+                                    value={localSettings.masjid?.fridayDuty?.bilal || ''}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        masjid: {
+                                          ...prev.masjid!,
+                                          fridayDuty: { ...prev.masjid!.fridayDuty, bilal: e.target.value }
+                                        }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {activeTab === 'about' && (
                           <div className="space-y-4">
                             <div>
@@ -946,16 +1286,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div className="elementor-widget-container">
                               <h4 className="text-sm font-medium text-gray-700">Sumber Data</h4>
                               <p className="mt-1 text-sm text-gray-500">
-                                Data yang ditampilkan diambil dari <a href="https://documenter.getpostman.com/view/841292/Tz5p7yHS" className={`font-bold ${
-                                  settings.themeColor === 'gray' ? 'text-gray-600 hover:text-gray-800' :
+                                Data yang ditampilkan diambil dari <a href="https://documenter.getpostman.com/view/841292/Tz5p7yHS" className={`font-bold ${settings.themeColor === 'gray' ? 'text-gray-600 hover:text-gray-800' :
                                   settings.themeColor === 'red' ? 'text-red-600 hover:text-red-800' :
-                                  settings.themeColor === 'yellow' ? 'text-yellow-600 hover:text-yellow-800' :
-                                  settings.themeColor === 'green' ? 'text-green-600 hover:text-green-800' :
-                                  settings.themeColor === 'blue' ? 'text-blue-600 hover:text-blue-800' :
-                                  settings.themeColor === 'purple' ? 'text-purple-600 hover:text-purple-800' :
-                                  settings.themeColor === 'pink' ? 'text-pink-600 hover:text-pink-800' :
-                                  'text-indigo-600 hover:text-indigo-800'
-                                }`}>API MyQuran</a>. Keterangan dalam dokumentasinya:
+                                    settings.themeColor === 'yellow' ? 'text-yellow-600 hover:text-yellow-800' :
+                                      settings.themeColor === 'green' ? 'text-green-600 hover:text-green-800' :
+                                        settings.themeColor === 'blue' ? 'text-blue-600 hover:text-blue-800' :
+                                          settings.themeColor === 'purple' ? 'text-purple-600 hover:text-purple-800' :
+                                            settings.themeColor === 'pink' ? 'text-pink-600 hover:text-pink-800' :
+                                              'text-indigo-600 hover:text-indigo-800'
+                                  }`}>API MyQuran</a>. Keterangan dalam dokumentasinya:
                               </p>
                               <p className={`mt-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                                 Informasi waktu sholat ini, diambil dari situs kemenag bimaislam.
@@ -976,32 +1315,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
                 </div>
-                <div className={`px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 ${
-                  isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
-                }`}>
+                <div className={`px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
+                  }`}>
                   <button
                     type="button"
-                    className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto ${
-                      settings.themeColor === 'gray' ? 'bg-gray-600 hover:bg-gray-500' :
+                    className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto ${settings.themeColor === 'gray' ? 'bg-gray-600 hover:bg-gray-500' :
                       settings.themeColor === 'red' ? 'bg-red-600 hover:bg-red-500' :
-                      settings.themeColor === 'yellow' ? 'bg-yellow-600 hover:bg-yellow-500' :
-                      settings.themeColor === 'green' ? 'bg-green-600 hover:bg-green-500' :
-                      settings.themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-500' :
-                      settings.themeColor === 'purple' ? 'bg-purple-600 hover:bg-purple-500' :
-                      settings.themeColor === 'pink' ? 'bg-pink-600 hover:bg-pink-500' :
-                      'bg-indigo-600 hover:bg-indigo-500'
-                    }`}
+                        settings.themeColor === 'yellow' ? 'bg-yellow-600 hover:bg-yellow-500' :
+                          settings.themeColor === 'green' ? 'bg-green-600 hover:bg-green-500' :
+                            settings.themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-500' :
+                              settings.themeColor === 'purple' ? 'bg-purple-600 hover:bg-purple-500' :
+                                settings.themeColor === 'pink' ? 'bg-pink-600 hover:bg-pink-500' :
+                                  'bg-indigo-600 hover:bg-indigo-500'
+                      }`}
                     onClick={handleSave}
                   >
                     Simpan Pengaturan
                   </button>
                   <button
                     type="button"
-                    className={`mt-3 inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ring-1 ring-inset sm:mt-0 sm:w-auto ${
-                      isDarkMode 
-                        ? 'bg-gray-600 text-gray-200 ring-gray-500 hover:bg-gray-500' 
-                        : 'bg-white text-gray-900 ring-gray-300 hover:bg-gray-50'
-                    }`}
+                    className={`mt-3 inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ring-1 ring-inset sm:mt-0 sm:w-auto ${isDarkMode
+                      ? 'bg-gray-600 text-gray-200 ring-gray-500 hover:bg-gray-500'
+                      : 'bg-white text-gray-900 ring-gray-300 hover:bg-gray-50'
+                      }`}
                     onClick={onClose}
                   >
                     Tutup
