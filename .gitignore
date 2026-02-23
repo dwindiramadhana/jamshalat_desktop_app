@@ -40,3 +40,4 @@ src-tauri/gen/android/
 .env
 .env.local
 .env.*.local
+jam-shalat-release.jks

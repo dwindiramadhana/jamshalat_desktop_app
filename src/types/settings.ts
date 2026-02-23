@@ -41,6 +41,62 @@ export interface MasjidSettings {
   };
 }
 
+export interface AudioSettings {
+  enabled: boolean;
+  volume: number;
+  adzanCountdownSeconds: number;
+  iqamahCountdownSeconds: number;
+  playAdzan: boolean;
+  playAdzanSubuh: boolean;
+}
+
+export type SlideType = 'image' | 'poster' | 'text' | 'minimalist';
+export type BackgroundType = 'image' | 'color' | 'gradient';
+export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
+export type SlidePriority = 'low' | 'normal' | 'high';
+
+export interface SlideSchedule {
+  startDate?: string;
+  endDate?: string;
+  daysOfWeek?: number[];
+  timeRange?: { start: string; end: string; };
+}
+
+export interface SlideOverlayContent {
+  showTime?: boolean;
+  showNextPrayer?: boolean;
+  customText?: string;
+  showLogo?: boolean;
+}
+
+export interface CustomSlide {
+  id: string;
+  type: SlideType;
+  title: string;
+  backgroundType: BackgroundType;
+  backgroundImage?: string;
+  backgroundColor?: string;
+  backgroundGradient?: { from: string; to: string; };
+  showOverlay: boolean;
+  overlayPosition: OverlayPosition;
+  overlayContent: SlideOverlayContent;
+  duration: number;
+  enabled: boolean;
+  schedule?: SlideSchedule;
+  priority: SlidePriority;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SlideSettings {
+  enabled: boolean;
+  slides: CustomSlide[];
+  mainScreenDuration: number;
+  slideDefaultDuration: number;
+  mainScreenFrequency: number;
+  shuffleSlides: boolean;
+}
+
 export interface Settings {
   background: BackgroundSettings;
   locationId: string | null;
@@ -50,6 +106,8 @@ export interface Settings {
   themeColor: ThemeColor;
   darkMode: boolean;
   masjid: MasjidSettings;
+  audio: AudioSettings;
+  slides: SlideSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -95,5 +153,21 @@ export const DEFAULT_SETTINGS: Settings = {
       imam: '',
       bilal: '',
     },
+  },
+  audio: {
+    enabled: true,
+    volume: 80,
+    adzanCountdownSeconds: 60,
+    iqamahCountdownSeconds: 60,
+    playAdzan: true,
+    playAdzanSubuh: true,
+  },
+  slides: {
+    enabled: false,
+    slides: [],
+    mainScreenDuration: 20,
+    slideDefaultDuration: 10,
+    mainScreenFrequency: 2,
+    shuffleSlides: false,
   },
 };

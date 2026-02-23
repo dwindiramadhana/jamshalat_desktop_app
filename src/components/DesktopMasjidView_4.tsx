@@ -1,6 +1,8 @@
 import React from 'react';
 import { Volume2, Settings as SettingsIcon, MapPin } from 'lucide-react';
 import type { PrayerTime } from '../types';
+import type { CustomSlide } from '../types/settings';
+import SlideDisplay from './SlideDisplay';
 
 type ThemeColors = {
     bg: string;
@@ -34,6 +36,11 @@ type DesktopMasjidView4Props = {
     onOpenSettings: () => void;
     isDarkMode: boolean;
     themeColors: ThemeColors;
+    secondaryScreen?: boolean;
+    nextPrayerCountdown?: string;
+    slideMode?: boolean;
+    currentSlide?: CustomSlide | null;
+    isTransitioning?: boolean;
 };
 
 // Default announcements - no longer used, keeping for reference
@@ -86,6 +93,11 @@ const DesktopMasjidView4 = ({
     fridayDuty,
     runningTextMode = 'marquee',
     runningTextSpeed = 'normal',
+    secondaryScreen = false,
+    nextPrayerCountdown,
+    slideMode = false,
+    currentSlide = null,
+    isTransitioning = false,
 }: DesktopMasjidView4Props) => {
 
     // State for fade mode message cycling
@@ -129,6 +141,75 @@ const DesktopMasjidView4 = ({
         }
     }, [runningTextMode, allMessages.length, fadeDuration]);
 
+    // --- SLIDE MODE ---
+    if (slideMode && currentSlide) {
+        return (
+            <div className={`flex flex-col h-screen w-full relative overflow-hidden font-['Inter'] transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+                <SlideDisplay
+                    slide={currentSlide}
+                    currentTime={currentTime}
+                    nextPrayerText={nextPrayerCountdown}
+                    isDarkMode={isDarkMode}
+                />
+            </div>
+        );
+    }
+
+    // --- SECONDARY SCREEN MODE ---
+    if (secondaryScreen) {
+        const nextPrayer = safePrayerTimes.find(p => p.isNext);
+        return (
+            <div className="flex flex-col h-screen w-full relative overflow-hidden font-['Inter']">
+                <div className="absolute inset-0 z-0 bg-black/30"></div>
+                
+                {/* Settings Button - Top Right */}
+                <button
+                    onClick={onOpenSettings}
+                    className="absolute top-6 right-6 z-20 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 group"
+                    aria-label="Open Settings"
+                >
+                    <SettingsIcon className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" />
+                </button>
+
+                <div className="relative z-10 flex flex-col h-full justify-end">
+                    <div className="flex items-end justify-between px-8 pb-6">
+                        {/* Bottom Left: Time */}
+                        <div className="text-white">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-6xl font-bold tabular-nums tracking-tighter">
+                                    {formatTime(currentTime)}
+                                </span>
+                                <span className="text-2xl font-medium text-white/60 tabular-nums">
+                                    {formatSeconds(currentTime)}
+                                </span>
+                            </div>
+                            <div className="text-sm text-white/50 mt-1">
+                                {formatDate(currentTime)}
+                            </div>
+                        </div>
+
+                        {/* Bottom Right: Next Prayer + Countdown */}
+                        {nextPrayer && (
+                            <div className="text-right text-white">
+                                <div className="text-sm text-orange-400 font-medium uppercase tracking-widest mb-1">
+                                    Berikutnya
+                                </div>
+                                <div className="text-4xl font-bold">
+                                    {nextPrayer.name} <span className="text-orange-400">{nextPrayer.time}</span>
+                                </div>
+                                {nextPrayerCountdown && (
+                                    <div className="text-lg text-white/70 mt-1 tabular-nums">
+                                        {nextPrayerCountdown}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-screen w-full relative overflow-hidden font-['Inter']">
             {/* --- Global Overlay for Contrast --- */}
@@ -140,13 +221,17 @@ const DesktopMasjidView4 = ({
                 {/* --- TOP HEADER --- */}
                 <div className="h-24 bg-slate-900/90 backdrop-blur-md text-white flex items-center justify-between px-8 border-b border-white/10 shadow-lg shrink-0">
 
-                    {/* Left: Location */}
-                    <div className="flex flex-col justify-center min-w-[200px]">
+                    {/* Left: Location (clickable to open settings) */}
+                    <button
+                        onClick={onOpenSettings}
+                        className="flex flex-col justify-center min-w-[200px] text-left group cursor-pointer"
+                        title="Ubah lokasi"
+                    >
                         <div className="flex items-center gap-2 text-orange-400 mb-1">
                             <MapPin className="w-5 h-5" />
                             <span className="font-medium tracking-wide text-sm uppercase opacity-90">Lokasi</span>
                         </div>
-                        <h1 className="text-2xl font-bold tracking-tight uppercase leading-none">
+                        <h1 className="text-2xl font-bold tracking-tight uppercase leading-none group-hover:text-orange-300 transition-colors">
                             {locationName}
                         </h1>
                         {subtitle && (
@@ -154,7 +239,7 @@ const DesktopMasjidView4 = ({
                                 {subtitle}
                             </div>
                         )}
-                    </div>
+                    </button>
 
                     {/* Center: Clock */}
                     <div className="flex items-baseline gap-2">

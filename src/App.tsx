@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import SettingsModal from './components/SettingsModal';
+import SunnahJumatDialog from './components/SunnahJumatDialog';
 import { fetchLocations, fetchPrayerTimes } from './api';
 import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 import DesktopMasjidView4 from './components/DesktopMasjidView_4';
+import CountdownOverlay from './components/CountdownOverlay';
+import { usePrayerCountdown } from './hooks/usePrayerCountdown';
+import { useSlideRotation } from './hooks/useSlideRotation';
 import {
   autoDetectLocation,
   shouldAttemptLocationDetection,
@@ -81,6 +85,14 @@ function App() {
               ...DEFAULT_APP_SETTINGS.masjid.fridayDuty,
               ...(parsed.masjid?.fridayDuty || {}),
             }
+          },
+          audio: {
+            ...DEFAULT_APP_SETTINGS.audio,
+            ...(parsed.audio || {}),
+          },
+          slides: {
+            ...DEFAULT_APP_SETTINGS.slides,
+            ...(parsed.slides || {}),
           }
         };
       } catch (e) {
@@ -92,6 +104,8 @@ function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsMode, setSettingsMode] = useState<'full' | 'location-only'>('full');
+  const [isSunnahJumatOpen, setIsSunnahJumatOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState<UnsplashImage | null>(null);
   const backgroundTimer = useRef<NodeJS.Timeout | null>(null);
   const [locations, setLocations] = useState<FormattedLocation[]>([]);
@@ -220,7 +234,16 @@ function App() {
 
   // Save settings to localStorage when they change
   useEffect(() => {
-    localStorage.setItem('appSettings', JSON.stringify(settings));
+    try {
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.error('localStorage quota exceeded. Consider reducing image sizes or number of slides.');
+        alert('Penyimpanan penuh! Gambar slide terlalu besar. Coba:\n1. Gunakan gambar lebih kecil\n2. Hapus beberapa slide\n3. Gunakan warna/gradien daripada gambar');
+      } else {
+        console.error('Error saving settings:', error);
+      }
+    }
 
     // Handle background rotation
     if (settings.background.images.length > 0) {
@@ -526,6 +549,46 @@ function App() {
   const isDarkMode = settings.darkMode;
   const isDesktopLayout = layoutMode === 'desktop';
 
+  // Prayer countdown hook
+  const iqamahDetailedMap: Record<string, number> = {
+    subuh: settings.masjid.iqamahDetailed.subuh,
+    dzuhur: settings.masjid.iqamahDetailed.dzuhur,
+    ashar: settings.masjid.iqamahDetailed.ashar,
+    maghrib: settings.masjid.iqamahDetailed.maghrib,
+    isya: settings.masjid.iqamahDetailed.isya,
+  };
+
+  const countdownState = usePrayerCountdown(
+    currentTime,
+    prayerTimes,
+    settings.audio,
+    settings.masjid.iqamahMode,
+    settings.masjid.iqamahUnified,
+    iqamahDetailedMap
+  );
+
+  const isCountdownActive = countdownState.phase !== 'idle';
+
+  // Slide rotation hook
+  const slideRotation = useSlideRotation(
+    settings.slides,
+    isCountdownActive,
+    isDesktopLayout
+  );
+
+  // Format next prayer countdown for secondary screen
+  const getNextPrayerCountdownText = (): string | undefined => {
+    const nextPrayer = prayerTimes.find(p => p.isNext);
+    if (!nextPrayer) return undefined;
+    const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const diff = nextPrayer.timeInMinutes - nowMinutes;
+    if (diff <= 0) return undefined;
+    const hours = Math.floor(diff / 60);
+    const mins = diff % 60;
+    if (hours > 0) return `${hours} jam ${mins} menit lagi`;
+    return `${mins} menit lagi`;
+  };
+
   const loadingContent = (
     <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
       }`}>
@@ -572,7 +635,10 @@ function App() {
         {/* Settings Button */}
         {!isDesktopLayout && (
           <button
-            onClick={() => setIsSettingsOpen(true)}
+            onClick={() => {
+              setSettingsMode('full');
+              setIsSettingsOpen(true);
+            }}
             className={`fixed ${isAndroid() ? 'top-12' : 'top-4'} right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${isDarkMode
               ? 'bg-gray-800/75 hover:bg-gray-700/90 text-gray-200'
               : `bg-white/75 hover:bg-white/90 ${themeColors.text}`
@@ -591,7 +657,7 @@ function App() {
               : 'bg-white border-gray-200'
               }`}>
               <div className="flex items-center space-x-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-indigo-600"></div>
+                <div className={`animate-spin rounded-full h-5 w-5 border-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'} border-t-indigo-600`}></div>
                 <div>
                   <p className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                     Mendeteksi Lokasi
@@ -645,6 +711,16 @@ function App() {
                 onOpenSettings={() => setIsSettingsOpen(true)}
                 isDarkMode={isDarkMode}
                 themeColors={themeColors}
+                secondaryScreen={
+                  !isCountdownActive && 
+                  countdownState.phase === 'idle' && 
+                  !settings.slides.enabled &&
+                  slideRotation.currentMode !== 'slide'
+                }
+                nextPrayerCountdown={getNextPrayerCountdownText()}
+                slideMode={slideRotation.currentMode === 'slide'}
+                currentSlide={slideRotation.currentSlide}
+                isTransitioning={slideRotation.isTransitioning}
               />
             ) : (
               <div className="space-y-4">
@@ -661,7 +737,7 @@ function App() {
                   </div>
 
                   {/* Time Display Only */}
-                  <div className="p-0 bg-white/30 rounded-xl text-center">
+                  <div className="p-0 text-center">
                     <div className={`text-3xl sm:text-4xl font-bold ${isDarkMode ? themeColors.textLight : themeColors.text
                       }`}>
                       {currentTime.toLocaleTimeString('id-ID', {
@@ -789,25 +865,37 @@ function App() {
                     <>
                       {/* Location and Schedule Label Row */}
                       <div className={`px-3 py-2 mb-4 flex flex-row items-center justify-between rounded-lg transition-colors ${isDarkMode
-                        ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
-                        : 'bg-white/50 hover:bg-white/70 text-gray-800'
+                        ? 'border-b border-gray-700/50 text-gray-100'
+                        : 'border-b border-gray-200/50 text-gray-800'
                         } backdrop-blur-sm`}>
-                        <div className="flex items-center">
-                          <span className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                        <button
+                          onClick={() => {
+                            setSettingsMode('location-only');
+                            setIsSettingsOpen(true);
+                          }}
+                          className="flex items-center gap-1 group cursor-pointer"
+                          title="Ubah lokasi"
+                        >
+                          <span className={`font-medium group-hover:underline ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
                             }`}>
                             {selectedLocation.name}
                           </span>
-                        </div>
-                        <span className={`font-semibold text-sm ${isDarkMode ? 'text-gray-200' : themeColors.text
-                          }`}>
-                          {(() => {
-                            const currentTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                            const allPrayersPassed = prayerTimes.every(prayer => {
-                              return prayer.timeInMinutes <= currentTotalMinutes;
-                            });
-                            return allPrayersPassed ? 'Jadwal Besok:' : 'Jadwal hari ini:';
-                          })()}
-                        </span>
+                        </button>
+                        {/* Friday Badge - Only visible on Fridays */}
+                        {currentTime.getDay() === 5 && (
+                          <button
+                            onClick={() => setIsSunnahJumatOpen(true)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 ${
+                              isDarkMode 
+                                ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 border border-orange-500/30' 
+                                : 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-500/20'
+                            }`}
+                            title="Lihat 7 Sunnah Jumat"
+                          >
+                            <span className="text-base">✨</span>
+                            <span>Sunnah Jumat</span>
+                          </button>
+                        )}
                       </div>
 
                       {prayerTimesLoading ? (
@@ -834,8 +922,8 @@ function App() {
                                 className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${prayer.isNext
                                   ? `${themeColors.bg} text-white`
                                   : isDarkMode
-                                    ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
-                                    : 'bg-white/50 hover:bg-white/70 text-gray-800'
+                                    ? 'border-b border-gray-700/50 text-gray-100'
+                                    : 'border-b border-gray-200/50 text-gray-800'
                                   } backdrop-blur-sm`}
                               >
                                 <div className="flex items-center">
@@ -872,8 +960,7 @@ function App() {
       {/* Settings Modal */}
       < SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)
-        }
+        onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSave={handleSaveSettings}
         locations={
@@ -890,6 +977,14 @@ function App() {
         selectedLocationId={selectedLocation?.id || null}
         onLocationChange={handleLocationChange}
         isDarkMode={isDarkMode}
+        mode={settingsMode}
+        isDesktopLayout={isDesktopLayout}
+      />
+
+      {/* Sunnah Jumat Dialog */}
+      <SunnahJumatDialog
+        isOpen={isSunnahJumatOpen}
+        onClose={() => setIsSunnahJumatOpen(false)}
       />
 
       {/* Custom Date Picker Modal */}
@@ -958,6 +1053,18 @@ function App() {
           </div>
         )
       }
+
+      {/* Countdown Overlay - renders on top of everything */}
+      {settings.audio.enabled && countdownState.phase !== 'idle' && (
+        <CountdownOverlay
+          phase={countdownState.phase}
+          prayerName={countdownState.prayerName}
+          secondsRemaining={countdownState.secondsRemaining}
+          totalSeconds={countdownState.totalSeconds}
+          progress={countdownState.progress}
+          isDesktop={isDesktopLayout}
+        />
+      )}
     </>
   );
 }

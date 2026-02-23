@@ -1,9 +1,10 @@
-import { Fragment, useState, useCallback, type ChangeEvent } from 'react';
+import { Fragment, useState, useCallback, useEffect, type ChangeEvent } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { PhotoIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
-import type { Settings as AppSettings, UnsplashImage } from '../types/settings';
+import type { Settings as AppSettings, UnsplashImage, CustomSlide } from '../types/settings';
 import type { LocationData } from '../types';
+import SlideEditorModal from './SlideEditorModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -14,9 +15,11 @@ interface SettingsModalProps {
   selectedLocationId: string | null;
   onLocationChange: (locationId: string) => void;
   isDarkMode: boolean;
+  mode?: 'full' | 'location-only';
+  isDesktopLayout?: boolean;
 }
 
-type TabType = 'location' | 'appearance' | 'masjid' | 'about';
+type TabType = 'location' | 'appearance' | 'masjid' | 'audio' | 'slides' | 'about';
 
 // Unsplash API response types
 interface UnsplashImageResult {
@@ -52,8 +55,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   selectedLocationId,
   onLocationChange,
   isDarkMode,
+  mode = 'full',
+  isDesktopLayout = true,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('location');
+  const [activeTab, setActiveTab] = useState<TabType>('appearance');
   const [localSettings, setLocalSettings] = useState<AppSettings>(() => ({
     ...settings,
     background: {
@@ -78,6 +83,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       iqamahUnified: settings.masjid?.iqamahUnified || 10,
       iqamahDetailed: settings.masjid?.iqamahDetailed || { subuh: 10, dzuhur: 10, ashar: 10, maghrib: 10, isya: 10 },
       fridayDuty: settings.masjid?.fridayDuty || { khatib: '', imam: '', bilal: '' },
+    },
+    audio: {
+      enabled: settings.audio?.enabled ?? true,
+      volume: settings.audio?.volume ?? 80,
+      adzanCountdownSeconds: settings.audio?.adzanCountdownSeconds ?? 60,
+      iqamahCountdownSeconds: settings.audio?.iqamahCountdownSeconds ?? 60,
+      playAdzan: settings.audio?.playAdzan ?? true,
+      playAdzanSubuh: settings.audio?.playAdzanSubuh ?? true,
+    },
+    slides: {
+      enabled: settings.slides?.enabled ?? false,
+      slides: settings.slides?.slides || [],
+      mainScreenDuration: settings.slides?.mainScreenDuration ?? 20,
+      slideDefaultDuration: settings.slides?.slideDefaultDuration ?? 10,
+      mainScreenFrequency: settings.slides?.mainScreenFrequency ?? 2,
+      shuffleSlides: settings.slides?.shuffleSlides ?? false,
     }
   }));
 
@@ -88,6 +109,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     tema: false,
     images: false
   });
+  const [isSlideEditorOpen, setIsSlideEditorOpen] = useState(false);
+  const [editingSlide, setEditingSlide] = useState<CustomSlide | null>(null);
   const appVersion = '1.0.2';
   const UNSPLASH_ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY || 'BkgEMpfG_ReNpVwJcbgNx30IZXhoFoWwKgwbrPU0hq4';
 
@@ -95,13 +118,62 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     location.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Set correct tab when modal opens based on mode
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(mode === 'location-only' ? 'location' : 'appearance');
+    }
+  }, [isOpen, mode]);
+
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
   }, []);
 
   const handleLocationSelect = useCallback((locationId: string) => {
     onLocationChange(locationId);
-  }, [onLocationChange]);
+    // Auto-close modal in location-only mode
+    if (mode === 'location-only') {
+      setTimeout(() => onClose(), 300);
+    }
+  }, [onLocationChange, mode, onClose]);
+
+  const handleCreateSlide = useCallback(() => {
+    setEditingSlide(null);
+    setIsSlideEditorOpen(true);
+  }, []);
+
+  const handleEditSlide = useCallback((slide: CustomSlide) => {
+    setEditingSlide(slide);
+    setIsSlideEditorOpen(true);
+  }, []);
+
+  const handleSaveSlide = useCallback((slide: CustomSlide) => {
+    setLocalSettings(prev => {
+      const existingIndex = prev.slides.slides.findIndex(s => s.id === slide.id);
+      
+      if (existingIndex >= 0) {
+        // Update existing slide
+        const updatedSlides = [...prev.slides.slides];
+        updatedSlides[existingIndex] = slide;
+        return {
+          ...prev,
+          slides: {
+            ...prev.slides,
+            slides: updatedSlides
+          }
+        };
+      } else {
+        // Add new slide
+        return {
+          ...prev,
+          slides: {
+            ...prev.slides,
+            slides: [...prev.slides.slides, slide]
+          }
+        };
+      }
+    });
+  }, []);
 
   const handleBackgroundTypeChange = useCallback((type: 'auto' | 'static') => {
     setLocalSettings(prev => ({
@@ -246,6 +318,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [localSettings, onSave, onClose]);
 
   return (
+    <>
     <Transition.Root show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
@@ -282,32 +355,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         Pengaturan
                       </Dialog.Title>
 
-                      {/* Tab Navigation */}
-                      <div className="border-b border-gray-200 mb-4">
-                        <nav className="-mb-px flex space-x-8">
-                          <button
-                            onClick={() => handleTabChange('location')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'location'
-                              ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
-                                settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
-                                  settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
-                                    settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
-                                      settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
-                                        settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
-                                          settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
-                                            'border-indigo-500 text-indigo-600'
-                              }`
-                              : `border-transparent ${isDarkMode
-                                ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
-                                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                              }`
-                              }`}
-                          >
-                            Lokasi
-                          </button>
-                          <button
-                            onClick={() => handleTabChange('appearance')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'appearance'
+                      {/* Tab Navigation - Hidden in location-only mode */}
+                      {mode === 'full' && (
+                        <div className="border-b border-gray-200 mb-4">
+                          <nav className="-mb-px flex space-x-8">
+                            <button
+                              onClick={() => handleTabChange('appearance')}
+                              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'appearance'
                               ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
                                 settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
                                   settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
@@ -346,6 +400,48 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             Masjid
                           </button>
                           <button
+                            onClick={() => handleTabChange('audio')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'audio'
+                              ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
+                                settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
+                                  settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
+                                    settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
+                                      settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
+                                        settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
+                                          settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
+                                            'border-indigo-500 text-indigo-600'
+                              }`
+                              : `border-transparent ${isDarkMode
+                                ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
+                                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`
+                              }`}
+                          >
+                            Audio
+                          </button>
+                          {isDesktopLayout && (
+                            <button
+                              onClick={() => handleTabChange('slides')}
+                              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'slides'
+                                ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
+                                  settings.themeColor === 'red' ? 'border-red-500 text-red-600' :
+                                    settings.themeColor === 'yellow' ? 'border-yellow-500 text-yellow-600' :
+                                      settings.themeColor === 'green' ? 'border-green-500 text-green-600' :
+                                        settings.themeColor === 'blue' ? 'border-blue-500 text-blue-600' :
+                                          settings.themeColor === 'purple' ? 'border-purple-500 text-purple-600' :
+                                            settings.themeColor === 'pink' ? 'border-pink-500 text-pink-600' :
+                                              'border-indigo-500 text-indigo-600'
+                                }`
+                                : `border-transparent ${isDarkMode
+                                  ? 'text-gray-300 hover:text-gray-100 hover:border-gray-500'
+                                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`
+                                }`}
+                            >
+                              Slides
+                            </button>
+                          )}
+                          <button
                             onClick={() => handleTabChange('about')}
                             className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'about'
                               ? `${settings.themeColor === 'gray' ? 'border-gray-500 text-gray-600' :
@@ -366,7 +462,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             Tentang
                           </button>
                         </nav>
-                      </div>
+                        </div>
+                      )}
 
                       {/* Tab Content */}
                       <div className="mt-4">
@@ -378,7 +475,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                               </label>
                               <input
                                 type="text"
-                                className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                  isDarkMode 
+                                    ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                }`}
                                 placeholder="Masukkan kata kunci..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -386,8 +487,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {filteredLocations.length > 0 && (
-                              <div className="max-h-60 overflow-y-auto border rounded-md">
-                                <ul className="divide-y divide-gray-200">
+                              <div className={`max-h-60 overflow-y-auto border rounded-md ${
+                                isDarkMode ? 'border-gray-600' : 'border-gray-300'
+                              }`}>
+                                <ul className={`divide-y ${isDarkMode ? 'divide-gray-600' : 'divide-gray-200'}`}>
                                   {filteredLocations.map((location) => (
                                     <li key={location.id}>
                                       <button
@@ -422,21 +525,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         {activeTab === 'appearance' && (
                           <div className="space-y-4">
                             {/* Accordion Group 1: General Settings */}
-                            <div className="border border-gray-200 rounded-lg">
+                            <div className={`border rounded-lg ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <button
                                 type="button"
-                                className="w-full px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 flex items-center justify-between rounded-t-lg focus:outline-none"
+                                className={`w-full px-4 py-3 text-left flex items-center justify-between focus:outline-none transition-colors ${
+                                  accordionState.general ? 'rounded-t-lg' : 'rounded-lg'
+                                } ${
+                                  isDarkMode 
+                                    ? 'bg-gray-700 hover:bg-gray-600' 
+                                    : 'bg-gray-50 hover:bg-gray-100'
+                                }`}
                                 onClick={() => setAccordionState({ general: !accordionState.general, tema: false, images: false })}
                               >
-                                <span className="font-medium text-gray-900">Umum</span>
+                                <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>Umum</span>
                                 {accordionState.general ? (
-                                  <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                                  <ChevronUpIcon className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                                 ) : (
-                                  <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                                  <ChevronDownIcon className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                                 )}
                               </button>
                               {accordionState.general && (
-                                <div className="px-4 py-3 space-y-4 border-t border-gray-200">
+                                <div className={`px-4 py-3 space-y-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                                   {/* Show Prayer Times */}
                                   <div>
                                     <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
@@ -558,7 +667,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                       type="number"
                                       min="1"
                                       max="1440"
-                                      className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                        isDarkMode 
+                                          ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                      }`}
                                       value={localSettings.background.rotationInterval}
                                       onChange={(e) => {
                                         const value = parseInt(e.target.value) || 30;
@@ -580,21 +693,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Accordion Group 2: Theme Settings */}
-                            <div className="border border-gray-200 rounded-lg">
+                            <div className={`border rounded-lg ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <button
                                 type="button"
-                                className="w-full px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 flex items-center justify-between rounded-t-lg focus:outline-none"
+                                className={`w-full px-4 py-3 text-left flex items-center justify-between focus:outline-none transition-colors ${
+                                  accordionState.tema ? 'rounded-t-lg' : 'rounded-lg'
+                                } ${
+                                  isDarkMode 
+                                    ? 'bg-gray-700 hover:bg-gray-600' 
+                                    : 'bg-gray-50 hover:bg-gray-100'
+                                }`}
                                 onClick={() => setAccordionState({ general: false, tema: !accordionState.tema, images: false })}
                               >
-                                <span className="font-medium text-gray-900">Tema</span>
+                                <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>Tema</span>
                                 {accordionState.tema ? (
-                                  <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                                  <ChevronUpIcon className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                                 ) : (
-                                  <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                                  <ChevronDownIcon className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                                 )}
                               </button>
                               {accordionState.tema && (
-                                <div className="px-4 py-3 space-y-4 border-t border-gray-200">
+                                <div className={`px-4 py-3 space-y-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                                   {/* Theme Color Selection */}
                                   <div>
                                     <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
@@ -615,8 +734,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           key={color.value}
                                           type="button"
                                           className={`flex items-center p-2 rounded-md border transition-all text-xs ${(localSettings.themeColor || 'indigo') === color.value
-                                            ? 'border-gray-400 bg-gray-50 ring-1 ring-gray-300'
-                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            ? isDarkMode
+                                              ? 'border-gray-500 bg-gray-700 ring-1 ring-gray-500'
+                                              : 'border-gray-400 bg-gray-50 ring-1 ring-gray-300'
+                                            : isDarkMode
+                                              ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                             }`}
                                           onClick={() => {
                                             setLocalSettings(prev => ({
@@ -626,7 +749,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           }}
                                         >
                                           <div className={`w-4 h-4 rounded-full ${color.color} mr-2 flex-shrink-0`}></div>
-                                          <span className={`truncate ${isDarkMode ? `text-${color.value}-400` : `text-${color.value}-700`}`}>{color.label}</span>
+                                          <span className={`truncate ${
+                                            isDarkMode 
+                                              ? color.value === 'gray' ? 'text-gray-300' :
+                                                color.value === 'red' ? 'text-red-400' :
+                                                color.value === 'yellow' ? 'text-yellow-400' :
+                                                color.value === 'green' ? 'text-green-400' :
+                                                color.value === 'blue' ? 'text-blue-400' :
+                                                color.value === 'indigo' ? 'text-indigo-400' :
+                                                color.value === 'purple' ? 'text-purple-400' :
+                                                'text-pink-400'
+                                              : color.value === 'gray' ? 'text-gray-700' :
+                                                color.value === 'red' ? 'text-red-700' :
+                                                color.value === 'yellow' ? 'text-yellow-700' :
+                                                color.value === 'green' ? 'text-green-700' :
+                                                color.value === 'blue' ? 'text-blue-700' :
+                                                color.value === 'indigo' ? 'text-indigo-700' :
+                                                color.value === 'purple' ? 'text-purple-700' :
+                                                'text-pink-700'
+                                          }`}>{color.label}</span>
                                         </button>
                                       ))}
                                     </div>
@@ -672,21 +813,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Accordion Group 3: Image Options */}
-                            <div className="border border-gray-200 rounded-lg">
+                            <div className={`border rounded-lg ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <button
                                 type="button"
-                                className="w-full px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 flex items-center justify-between rounded-t-lg focus:outline-none"
+                                className={`w-full px-4 py-3 text-left flex items-center justify-between focus:outline-none transition-colors ${
+                                  accordionState.images ? 'rounded-t-lg' : 'rounded-lg'
+                                } ${
+                                  isDarkMode 
+                                    ? 'bg-gray-700 hover:bg-gray-600' 
+                                    : 'bg-gray-50 hover:bg-gray-100'
+                                }`}
                                 onClick={() => setAccordionState({ general: false, tema: false, images: !accordionState.images })}
                               >
-                                <span className="font-medium text-gray-900">Pilihan Gambar</span>
+                                <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>Pilihan Gambar</span>
                                 {accordionState.images ? (
-                                  <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                                  <ChevronUpIcon className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                                 ) : (
-                                  <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                                  <ChevronDownIcon className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                                 )}
                               </button>
                               {accordionState.images && (
-                                <div className="px-4 py-3 space-y-4 border-t border-gray-200">
+                                <div className={`px-4 py-3 space-y-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                                   {/* Unsplash Image Search and Grid */}
                                   {localSettings.background.type === 'auto' && (
                                     <div>
@@ -697,7 +844,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <div className="flex space-x-2">
                                           <input
                                             type="text"
-                                            className="flex-1 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                            className={`flex-1 rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                              isDarkMode 
+                                                ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                            }`}
                                             placeholder="Cari gambar..."
                                             value={localSettings.background.unsplashQuery || ''}
                                             onChange={(e) => {
@@ -739,7 +890,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                                             Gambar Pilihan
                                           </label>
-                                          <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                                          <div className={`max-h-48 overflow-y-auto border rounded-md p-2 ${
+                                            isDarkMode ? 'border-gray-600' : 'border-gray-300'
+                                          }`}>
                                             <div className="grid grid-cols-3 gap-3">
                                               {localSettings.background.images.map((image, index) => (
                                                 <div
@@ -862,7 +1015,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                           <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                                             Gambar Latar Belakang
                                           </label>
-                                          <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                                          <div className={`max-h-48 overflow-y-auto border rounded-md p-2 ${
+                                            isDarkMode ? 'border-gray-600' : 'border-gray-300'
+                                          }`}>
                                             <div className="grid grid-cols-3 gap-3">
                                               {localSettings.background.images.map((image, index) => (
                                                 <div
@@ -1277,6 +1432,384 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
                         )}
 
+                        {activeTab === 'audio' && (
+                          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                            {/* Master Toggle */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Audio & Countdown</h4>
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="audio-enabled" className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Aktifkan Audio & Countdown
+                                  </label>
+                                  <input
+                                    id="audio-enabled"
+                                    type="checkbox"
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                    checked={localSettings.audio?.enabled ?? true}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        audio: { ...prev.audio!, enabled: e.target.checked }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Volume */}
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Volume ({localSettings.audio?.volume ?? 80}%)
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    className="w-full accent-indigo-600"
+                                    value={localSettings.audio?.volume ?? 80}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        audio: { ...prev.audio!, volume: parseInt(e.target.value) }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Countdown Timing */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Pengaturan Waktu Countdown</h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Countdown sebelum Adzan (detik)
+                                  </label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      min="10"
+                                      max="300"
+                                      className="w-24 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      value={localSettings.audio?.adzanCountdownSeconds ?? 60}
+                                      onChange={(e) => {
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          audio: { ...prev.audio!, adzanCountdownSeconds: Math.max(10, Math.min(300, parseInt(e.target.value) || 60)) }
+                                        }));
+                                      }}
+                                    />
+                                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>detik</span>
+                                  </div>
+                                  <p className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Tampilkan countdown XX detik sebelum waktu adzan. Audio &quot;3-2-1&quot; diputar 3 detik sebelum adzan.
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Countdown sebelum Iqamah (detik)
+                                  </label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      min="10"
+                                      max="300"
+                                      className="w-24 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      value={localSettings.audio?.iqamahCountdownSeconds ?? 60}
+                                      onChange={(e) => {
+                                        setLocalSettings(prev => ({
+                                          ...prev,
+                                          audio: { ...prev.audio!, iqamahCountdownSeconds: Math.max(10, Math.min(300, parseInt(e.target.value) || 60)) }
+                                        }));
+                                      }}
+                                    />
+                                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>detik</span>
+                                  </div>
+                                  <p className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Audio &quot;3-2-1&quot; diputar 3 detik sebelum iqamah. Beep diputar setiap 1 menit selama jeda.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Adzan Audio */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Audio Adzan</h4>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="play-adzan" className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Putar audio adzan saat waktu tiba
+                                  </label>
+                                  <input
+                                    id="play-adzan"
+                                    type="checkbox"
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                    checked={localSettings.audio?.playAdzan ?? true}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        audio: { ...prev.audio!, playAdzan: e.target.checked }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="play-adzan-subuh" className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Gunakan adzan Subuh khusus
+                                  </label>
+                                  <input
+                                    id="play-adzan-subuh"
+                                    type="checkbox"
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                    checked={localSettings.audio?.playAdzanSubuh ?? true}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        audio: { ...prev.audio!, playAdzanSubuh: e.target.checked }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Audio Files Info */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>File Audio</h4>
+                              <div className={`text-xs space-y-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                <p>• <code>3-detik-countdown.mp3</code> — Audio &quot;3-2-1-TIME&quot;</p>
+                                <p>• <code>adzan.mp3</code> — Audio adzan reguler</p>
+                                <p>• <code>adzan-subuh.mp3</code> — Audio adzan Subuh</p>
+                                <p>• <code>beep.mp3</code> — Beep setiap 1 menit jeda adzan-iqamah</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {activeTab === 'slides' && (
+                          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                            {/* Master Toggle */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Slide Rotation System</h4>
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="slides-enabled" className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Aktifkan Rotasi Slide
+                                  </label>
+                                  <input
+                                    id="slides-enabled"
+                                    type="checkbox"
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                    checked={localSettings.slides?.enabled ?? false}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        slides: { ...prev.slides!, enabled: e.target.checked }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+
+                                <div className={`p-3 rounded ${isDarkMode ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200'}`}>
+                                  <p className={`text-xs ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                                    <strong>Cara Kerja:</strong> Layar akan berotasi antara jadwal shalat utama dan slide kustom (poster, pengumuman, dll). Frekuensi rotasi dapat diatur di bawah.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Rotation Settings */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Pengaturan Rotasi</h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Durasi Layar Utama: {localSettings.slides?.mainScreenDuration ?? 20} detik
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="60"
+                                    className="w-full accent-indigo-600"
+                                    value={localSettings.slides?.mainScreenDuration ?? 20}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        slides: { ...prev.slides!, mainScreenDuration: parseInt(e.target.value) }
+                                      }));
+                                    }}
+                                  />
+                                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Berapa lama jadwal shalat lengkap ditampilkan
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Durasi Slide Default: {localSettings.slides?.slideDefaultDuration ?? 10} detik
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="5"
+                                    max="30"
+                                    className="w-full accent-indigo-600"
+                                    value={localSettings.slides?.slideDefaultDuration ?? 10}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        slides: { ...prev.slides!, slideDefaultDuration: parseInt(e.target.value) }
+                                      }));
+                                    }}
+                                  />
+                                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Berapa lama slide kustom ditampilkan (dapat diubah per slide)
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Frekuensi Kembali ke Layar Utama
+                                  </label>
+                                  <select
+                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2"
+                                    value={localSettings.slides?.mainScreenFrequency ?? 2}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        slides: { ...prev.slides!, mainScreenFrequency: parseInt(e.target.value) }
+                                      }));
+                                    }}
+                                  >
+                                    <option value="1">Setiap 1 slide (Utama → Slide → Utama)</option>
+                                    <option value="2">Setiap 2 slide (Utama → Slide → Slide → Utama)</option>
+                                    <option value="3">Setiap 3 slide (Utama → Slide → Slide → Slide → Utama)</option>
+                                    <option value="4">Setiap 4 slide</option>
+                                    <option value="5">Setiap 5 slide</option>
+                                  </select>
+                                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Pola: Utama → X slide kustom → Utama → [loop]
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="shuffle-slides" className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Acak urutan slide
+                                  </label>
+                                  <input
+                                    id="shuffle-slides"
+                                    type="checkbox"
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                    checked={localSettings.slides?.shuffleSlides ?? false}
+                                    onChange={(e) => {
+                                      setLocalSettings(prev => ({
+                                        ...prev,
+                                        slides: { ...prev.slides!, shuffleSlides: e.target.checked }
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Slide Library */}
+                            <div className="border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                                  Slide Library ({localSettings.slides?.slides.length || 0} slide)
+                                </h4>
+                                <button
+                                  type="button"
+                                  className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                  onClick={handleCreateSlide}
+                                >
+                                  + Tambah Slide
+                                </button>
+                              </div>
+
+                              {(!localSettings.slides?.slides || localSettings.slides.slides.length === 0) ? (
+                                <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  <p className="text-sm">Belum ada slide.</p>
+                                  <p className="text-xs mt-1">Klik &quot;Tambah Slide&quot; untuk membuat slide kustom pertama Anda.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {localSettings.slides.slides.map((slide, idx) => (
+                                    <div
+                                      key={slide.id}
+                                      className={`p-3 rounded border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                              {slide.title || `Slide ${idx + 1}`}
+                                            </span>
+                                            {!slide.enabled && (
+                                              <span className="text-xs px-2 py-0.5 bg-gray-500 text-white rounded">Nonaktif</span>
+                                            )}
+                                            <span className={`text-xs px-2 py-0.5 rounded ${
+                                              slide.priority === 'high' ? 'bg-red-100 text-red-800' :
+                                              slide.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
+                                              'bg-gray-100 text-gray-800'
+                                            }`}>
+                                              {slide.priority === 'high' ? 'Tinggi' : slide.priority === 'normal' ? 'Normal' : 'Rendah'}
+                                            </span>
+                                          </div>
+                                          <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            {slide.type} • {slide.duration}s • {slide.backgroundType}
+                                          </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            className="text-xs text-indigo-600 hover:text-indigo-800"
+                                            onClick={() => handleEditSlide(slide)}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="text-xs text-red-600 hover:text-red-800"
+                                            onClick={() => {
+                                              if (confirm('Hapus slide ini?')) {
+                                                setLocalSettings(prev => ({
+                                                  ...prev,
+                                                  slides: {
+                                                    ...prev.slides!,
+                                                    slides: prev.slides!.slides.filter((_, i) => i !== idx)
+                                                  }
+                                                }));
+                                              }
+                                            }}
+                                          >
+                                            Hapus
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Info */}
+                            <div className={`p-3 rounded ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-50 border border-gray-200'}`}>
+                              <h5 className={`text-xs font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                                💡 Petunjuk Penggunaan
+                              </h5>
+                              <ul className={`text-xs space-y-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                <li>• Slide kustom muncul di antara tampilan jadwal shalat utama</li>
+                                <li>• Prioritas &quot;Tinggi&quot; membuat slide muncul lebih sering</li>
+                                <li>• Gunakan slide untuk: poster acara, fundraising, pengumuman, dll</li>
+                                <li>• Slide dapat dijadwalkan per hari/jam (fitur akan datang)</li>
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+
                         {activeTab === 'about' && (
                           <div className="space-y-4">
                             <div>
@@ -1315,40 +1848,56 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
                 </div>
-                <div className={`px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
-                  }`}>
-                  <button
-                    type="button"
-                    className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto ${settings.themeColor === 'gray' ? 'bg-gray-600 hover:bg-gray-500' :
-                      settings.themeColor === 'red' ? 'bg-red-600 hover:bg-red-500' :
-                        settings.themeColor === 'yellow' ? 'bg-yellow-600 hover:bg-yellow-500' :
-                          settings.themeColor === 'green' ? 'bg-green-600 hover:bg-green-500' :
-                            settings.themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-500' :
-                              settings.themeColor === 'purple' ? 'bg-purple-600 hover:bg-purple-500' :
-                                settings.themeColor === 'pink' ? 'bg-pink-600 hover:bg-pink-500' :
-                                  'bg-indigo-600 hover:bg-indigo-500'
-                      }`}
-                    onClick={handleSave}
-                  >
-                    Simpan Pengaturan
-                  </button>
-                  <button
-                    type="button"
-                    className={`mt-3 inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ring-1 ring-inset sm:mt-0 sm:w-auto ${isDarkMode
-                      ? 'bg-gray-600 text-gray-200 ring-gray-500 hover:bg-gray-500'
-                      : 'bg-white text-gray-900 ring-gray-300 hover:bg-gray-50'
-                      }`}
-                    onClick={onClose}
-                  >
-                    Tutup
-                  </button>
-                </div>
+                {/* Footer buttons - Hidden in location-only mode */}
+                {mode === 'full' && (
+                  <div className={`px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
+                    }`}>
+                    <button
+                      type="button"
+                      className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto ${settings.themeColor === 'gray' ? 'bg-gray-600 hover:bg-gray-500' :
+                        settings.themeColor === 'red' ? 'bg-red-600 hover:bg-red-500' :
+                          settings.themeColor === 'yellow' ? 'bg-yellow-600 hover:bg-yellow-500' :
+                            settings.themeColor === 'green' ? 'bg-green-600 hover:bg-green-500' :
+                              settings.themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-500' :
+                                settings.themeColor === 'purple' ? 'bg-purple-600 hover:bg-purple-500' :
+                                  settings.themeColor === 'pink' ? 'bg-pink-600 hover:bg-pink-500' :
+                                    'bg-indigo-600 hover:bg-indigo-500'
+                        }`}
+                      onClick={handleSave}
+                    >
+                      Simpan Pengaturan
+                    </button>
+                    <button
+                      type="button"
+                      className={`mt-3 inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ring-1 ring-inset sm:mt-0 sm:w-auto ${isDarkMode
+                        ? 'bg-gray-600 text-gray-200 ring-gray-500 hover:bg-gray-500'
+                        : 'bg-white text-gray-900 ring-gray-300 hover:bg-gray-50'
+                        }`}
+                      onClick={onClose}
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                )}
               </Dialog.Panel>
             </Transition.Child>
           </div>
         </div>
       </Dialog>
     </Transition.Root>
+
+    {/* Slide Editor Modal */}
+    <SlideEditorModal
+      isOpen={isSlideEditorOpen}
+      onClose={() => {
+        setIsSlideEditorOpen(false);
+        setEditingSlide(null);
+      }}
+      onSave={handleSaveSlide}
+      existingSlide={editingSlide}
+      isDarkMode={isDarkMode}
+    />
+    </>
   );
 };
 
