@@ -5,7 +5,6 @@ interface SlideDisplayProps {
   slide: CustomSlide;
   currentTime: Date;
   nextPrayerText?: string;
-  masjidLogo?: string;
   isDarkMode: boolean;
 }
 
@@ -13,7 +12,6 @@ const SlideDisplay: React.FC<SlideDisplayProps> = ({
   slide,
   currentTime,
   nextPrayerText,
-  masjidLogo,
   isDarkMode,
 }) => {
   const getBackgroundStyle = (): React.CSSProperties => {
@@ -75,9 +73,13 @@ const SlideDisplay: React.FC<SlideDisplayProps> = ({
         >
           <div className="space-y-2">
             {/* Logo */}
-            {slide.overlayContent.showLogo && masjidLogo && (
+            {slide.overlayContent.showLogo && (
               <div className="flex justify-center mb-3">
-                <img src={masjidLogo} alt="Logo" className="h-12 w-auto" />
+                <img 
+                  src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"} 
+                  alt="Jam Shalat Logo" 
+                  className="h-12 w-auto" 
+                />
               </div>
             )}
 
@@ -85,7 +87,7 @@ const SlideDisplay: React.FC<SlideDisplayProps> = ({
             {slide.overlayContent.showTime && (
               <div className="text-center">
                 <div className={`text-4xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  {String(currentTime.getHours()).padStart(2, '0')}:{String(currentTime.getMinutes()).padStart(2, '0')}:{String(currentTime.getSeconds()).padStart(2, '0')}
                 </div>
                 <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   {currentTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -107,13 +109,6 @@ const SlideDisplay: React.FC<SlideDisplayProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Slide Title (for debugging, can be removed) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-          {slide.title}
         </div>
       )}
     </div>

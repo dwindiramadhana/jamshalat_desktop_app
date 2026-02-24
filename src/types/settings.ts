@@ -22,6 +22,7 @@ export type ThemeColor = 'slate' | 'gray' | 'zinc' | 'neutral' | 'stone' | 'red'
 export interface MasjidSettings {
   name: string;
   address: string;
+  logoUrl?: string;
   runningText: string[];
   runningTextMode: 'marquee' | 'fade';
   runningTextSpeed: 'slow' | 'normal' | 'fast';

@@ -1105,7 +1105,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         {activeTab === 'masjid' && (
                           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                             {/* Mosque Identity */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Identitas Masjid</h4>
                               <div className="space-y-3">
                                 <div>
@@ -1114,7 +1114,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                   </label>
                                   <input
                                     type="text"
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                     placeholder="Contoh: Masjid Agung"
                                     value={localSettings.masjid?.name || ''}
                                     onChange={(e) => {
@@ -1131,7 +1135,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                   </label>
                                   <input
                                     type="text"
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                     placeholder="Contoh: Jl. Merdeka No. 1"
                                     value={localSettings.masjid?.address || ''}
                                     onChange={(e) => {
@@ -1142,18 +1150,73 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     }}
                                   />
                                 </div>
+                                <div>
+                                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Logo Masjid
+                                  </label>
+                                  <div className="space-y-2">
+                                    {localSettings.masjid?.logoUrl && (
+                                      <div className="flex items-center gap-3">
+                                        <img 
+                                          src={localSettings.masjid.logoUrl} 
+                                          alt="Logo Masjid" 
+                                          className="h-16 w-auto object-contain rounded border border-gray-300"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setLocalSettings(prev => ({
+                                              ...prev,
+                                              masjid: { ...prev.masjid!, logoUrl: undefined }
+                                            }));
+                                          }}
+                                          className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                                        >
+                                          Hapus Logo
+                                        </button>
+                                      </div>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onloadend = () => {
+                                            setLocalSettings(prev => ({
+                                              ...prev,
+                                              masjid: { ...prev.masjid!, logoUrl: reader.result as string }
+                                            }));
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      className={`w-full text-sm ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                      }`}
+                                    />
+                                    <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      Upload logo masjid Anda. Akan ditampilkan di atas jam digital.
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
 
                             {/* Running Text Repeater */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Teks Berjalan (Running Text)</h4>
                               <div className="space-y-2">
                                 {(localSettings.masjid?.runningText || []).map((text, index) => (
                                   <div key={index} className="flex items-center gap-2">
                                     <input
                                       type="text"
-                                      className="flex-1 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      className={`flex-1 rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                        isDarkMode 
+                                          ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                      }`}
                                       placeholder={`Teks berjalan ${index + 1}`}
                                       value={text}
                                       onChange={(e) => {
@@ -1182,7 +1245,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 ))}
                                 <button
                                   type="button"
-                                  className={`w-full py-2 px-3 border border-dashed border-gray-300 rounded-md text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors`}
+                                  className={`w-full py-2 px-3 border border-dashed rounded-md text-sm transition-colors ${
+                                    isDarkMode
+                                      ? 'border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 bg-gray-700/30'
+                                      : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600'
+                                  }`}
                                   onClick={() => {
                                     const newRunningText = [...(localSettings.masjid?.runningText || []), ''];
                                     setLocalSettings(prev => ({
@@ -1196,7 +1263,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                               </div>
 
                               {/* Animation Mode & Speed */}
-                              <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 gap-4">
+                              <div className={`mt-4 pt-4 border-t grid grid-cols-2 gap-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                                 {/* Animation Mode */}
                                 <div>
                                   <label className={`block text-xs font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1242,7 +1309,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     Kecepatan
                                   </label>
                                   <select
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                     value={localSettings.masjid?.runningTextSpeed || 'normal'}
                                     onChange={(e) => {
                                       setLocalSettings(prev => ({
@@ -1260,7 +1331,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Iqamah Settings */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Pengaturan Iqamah (menit setelah adzan)</h4>
                               <div className="space-y-3">
                                 {/* Mode Toggle */}
@@ -1307,7 +1378,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                       type="number"
                                       min="1"
                                       max="60"
-                                      className="w-24 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      className={`w-24 rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                       value={localSettings.masjid?.iqamahUnified || 10}
                                       onChange={(e) => {
                                         setLocalSettings(prev => ({
@@ -1339,7 +1414,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             type="number"
                                             min="1"
                                             max="60"
-                                            className="w-16 rounded-md border-gray-300 sm:text-sm px-2 py-1 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                            className={`w-16 rounded-md sm:text-sm px-2 py-1 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                              isDarkMode 
+                                                ? 'bg-gray-700 border-gray-600 text-gray-200 focus:border-slate-400 hover:border-gray-500' 
+                                                : 'bg-white border-gray-300 text-gray-900 focus:border-slate-400 hover:border-slate-300'
+                                            }`}
                                             value={localSettings.masjid?.iqamahDetailed?.[prayer.key as keyof typeof localSettings.masjid.iqamahDetailed] || 10}
                                             onChange={(e) => {
                                               setLocalSettings(prev => ({
@@ -1364,7 +1443,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Friday Duty */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Petugas Jumat</h4>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
@@ -1373,7 +1452,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                   </label>
                                   <input
                                     type="text"
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                     placeholder="Nama Khatib"
                                     value={localSettings.masjid?.fridayDuty?.khatib || ''}
                                     onChange={(e) => {
@@ -1393,7 +1476,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                   </label>
                                   <input
                                     type="text"
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                     placeholder="Nama Imam"
                                     value={localSettings.masjid?.fridayDuty?.imam || ''}
                                     onChange={(e) => {
@@ -1413,7 +1500,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                   </label>
                                   <input
                                     type="text"
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-slate-400 hover:border-gray-500' 
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-slate-400 hover:border-slate-300'
+                                    }`}
                                     placeholder="Nama Bilal"
                                     value={localSettings.masjid?.fridayDuty?.bilal || ''}
                                     onChange={(e) => {
@@ -1435,7 +1526,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         {activeTab === 'audio' && (
                           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                             {/* Master Toggle */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Audio & Countdown</h4>
                               <div className="space-y-4">
                                 <div className="flex items-center justify-between">
@@ -1479,7 +1570,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Countdown Timing */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Pengaturan Waktu Countdown</h4>
                               <div className="space-y-3">
                                 <div>
@@ -1491,7 +1582,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                       type="number"
                                       min="10"
                                       max="300"
-                                      className="w-24 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      className={`w-24 rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                        isDarkMode 
+                                          ? 'bg-gray-700 border-gray-600 text-gray-200 focus:border-slate-400 hover:border-gray-500' 
+                                          : 'bg-white border-gray-300 text-gray-900 focus:border-slate-400 hover:border-slate-300'
+                                      }`}
                                       value={localSettings.audio?.adzanCountdownSeconds ?? 60}
                                       onChange={(e) => {
                                         setLocalSettings(prev => ({
@@ -1516,7 +1611,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                       type="number"
                                       min="10"
                                       max="300"
-                                      className="w-24 rounded-md border-gray-300 sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+                                      className={`w-24 rounded-md sm:text-sm px-3 py-2 transition duration-300 ease focus:outline-none shadow-sm focus:shadow ${
+                                        isDarkMode 
+                                          ? 'bg-gray-700 border-gray-600 text-gray-200 focus:border-slate-400 hover:border-gray-500' 
+                                          : 'bg-white border-gray-300 text-gray-900 focus:border-slate-400 hover:border-slate-300'
+                                      }`}
                                       value={localSettings.audio?.iqamahCountdownSeconds ?? 60}
                                       onChange={(e) => {
                                         setLocalSettings(prev => ({
@@ -1535,7 +1634,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Adzan Audio */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Audio Adzan</h4>
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
@@ -1577,7 +1676,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Audio Files Info */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>File Audio</h4>
                               <div className={`text-xs space-y-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                 <p>• <code>3-detik-countdown.mp3</code> — Audio &quot;3-2-1-TIME&quot;</p>
@@ -1592,7 +1691,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         {activeTab === 'slides' && (
                           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                             {/* Master Toggle */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Slide Rotation System</h4>
                               <div className="space-y-4">
                                 <div className="flex items-center justify-between">
@@ -1622,7 +1721,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Rotation Settings */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Pengaturan Rotasi</h4>
                               <div className="space-y-3">
                                 <div>
@@ -1674,7 +1773,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     Frekuensi Kembali ke Layar Utama
                                   </label>
                                   <select
-                                    className="w-full rounded-md border-gray-300 sm:text-sm px-3 py-2"
+                                    className={`w-full rounded-md sm:text-sm px-3 py-2 ${
+                                      isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                                        : 'bg-white border-gray-300 text-gray-900'
+                                    }`}
                                     value={localSettings.slides?.mainScreenFrequency ?? 2}
                                     onChange={(e) => {
                                       setLocalSettings(prev => ({
@@ -1715,7 +1818,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
 
                             {/* Slide Library */}
-                            <div className="border border-gray-200 rounded-lg p-4">
+                            <div className={`border rounded-lg p-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                               <div className="flex items-center justify-between mb-3">
                                 <h4 className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                                   Slide Library ({localSettings.slides?.slides.length || 0} slide)

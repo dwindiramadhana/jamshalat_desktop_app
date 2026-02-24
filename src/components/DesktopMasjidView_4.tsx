@@ -33,7 +33,9 @@ type DesktopMasjidView4Props = {
     iqamahOffsets?: Record<string, number>;
     runningTextMode?: 'marquee' | 'fade';
     runningTextSpeed?: 'slow' | 'normal' | 'fast';
+    masjidLogoUrl?: string;
     onOpenSettings: () => void;
+    onOpenLocationSettings: () => void;
     isDarkMode: boolean;
     themeColors: ThemeColors;
     secondaryScreen?: boolean;
@@ -41,20 +43,18 @@ type DesktopMasjidView4Props = {
     slideMode?: boolean;
     currentSlide?: CustomSlide | null;
     isTransitioning?: boolean;
+    adzanEnabled?: boolean;
+    onToggleAdzan?: () => void;
 };
 
 // Default announcements - no longer used, keeping for reference
 // const DEFAULT_ANNOUNCEMENT = 'Mohon Luruskan dan Rapatkan Shaf | Matikan HP Anda saat Shalat Berlangsung';
 
-const formatTime = (value: Date) =>
-    value
-        .toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-            hourCycle: 'h23',
-        })
-        .replace(/\./g, ':');
+const formatTime = (value: Date) => {
+    const hours = String(value.getHours()).padStart(2, '0');
+    const minutes = String(value.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+};
 
 const formatSeconds = (value: Date) =>
     String(value.getSeconds()).padStart(2, '0');
@@ -88,14 +88,18 @@ const DesktopMasjidView4 = ({
     iqamahOffsets,
     onOpenSettings,
     isDarkMode,
-    // themeColors,
+    themeColors,
     tickerMessages = [],
     fridayDuty,
     runningTextMode = 'marquee',
     runningTextSpeed = 'normal',
+    masjidLogoUrl,
+    onOpenLocationSettings,
     secondaryScreen = false,
     nextPrayerCountdown,
     slideMode = false,
+    adzanEnabled = true,
+    onToggleAdzan,
     currentSlide = null,
     isTransitioning = false,
 }: DesktopMasjidView4Props) => {
@@ -159,29 +163,24 @@ const DesktopMasjidView4 = ({
     if (secondaryScreen) {
         const nextPrayer = safePrayerTimes.find(p => p.isNext);
         return (
-            <div className="flex flex-col h-screen w-full relative overflow-hidden font-['Inter']">
-                <div className="absolute inset-0 z-0 bg-black/30"></div>
+            <div className="flex flex-col h-screen w-full relative overflow-hidden font-['Inter'] rounded-tl-3xl">
+                <div className="absolute inset-0 z-0 bg-black/30 rounded-tl-3xl"></div>
                 
                 {/* Settings Button - Top Right */}
                 <button
                     onClick={onOpenSettings}
-                    className="absolute top-6 right-6 z-20 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 group"
+                    className="absolute top-4 right-4 z-20 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 group"
                     aria-label="Open Settings"
                 >
                     <SettingsIcon className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" />
                 </button>
 
                 <div className="relative z-10 flex flex-col h-full justify-end">
-                    <div className="flex items-end justify-between px-8 pb-6">
+                    <div className="flex items-end justify-between px-6 pb-4">
                         {/* Bottom Left: Time */}
                         <div className="text-white">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-6xl font-bold tabular-nums tracking-tighter">
-                                    {formatTime(currentTime)}
-                                </span>
-                                <span className="text-2xl font-medium text-white/60 tabular-nums">
-                                    {formatSeconds(currentTime)}
-                                </span>
+                            <div className="text-6xl font-bold tabular-nums tracking-tighter">
+                                {formatTime(currentTime)}:{formatSeconds(currentTime)}
                             </div>
                             <div className="text-sm text-white/50 mt-1">
                                 {formatDate(currentTime)}
@@ -191,11 +190,11 @@ const DesktopMasjidView4 = ({
                         {/* Bottom Right: Next Prayer + Countdown */}
                         {nextPrayer && (
                             <div className="text-right text-white">
-                                <div className="text-sm text-orange-400 font-medium uppercase tracking-widest mb-1">
+                                <div className={`text-sm font-medium uppercase tracking-widest mb-1 ${themeColors.text}`}>
                                     Berikutnya
                                 </div>
                                 <div className="text-4xl font-bold">
-                                    {nextPrayer.name} <span className="text-orange-400">{nextPrayer.time}</span>
+                                    {nextPrayer.name} <span className={themeColors.text}>{nextPrayer.time}</span>
                                 </div>
                                 {nextPrayerCountdown && (
                                     <div className="text-lg text-white/70 mt-1 tabular-nums">
@@ -219,23 +218,57 @@ const DesktopMasjidView4 = ({
             <div className="relative z-10 flex flex-col h-full justify-between">
 
                 {/* --- TOP HEADER --- */}
-                <div className="h-24 bg-slate-900/90 backdrop-blur-md text-white flex items-center justify-between px-8 border-b border-white/10 shadow-lg shrink-0">
+                <div className={`h-40 backdrop-blur-md flex flex-col px-8 shadow-lg shrink-0 ${
+                    isDarkMode 
+                        ? 'bg-slate-900/90 text-white border-b border-white/10' 
+                        : 'bg-white/90 text-gray-900 border-b border-gray-200'
+                }`}>
+                    {/* Logo row: 3 columns - empty | logo | gear */}
+                    <div className="flex items-center justify-between pt-3 pb-2">
+                        {/* Left: Empty space */}
+                        <div className="w-12"></div>
+                        
+                        {/* Center: Logo */}
+                        <img 
+                            src={masjidLogoUrl || (isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png")} 
+                            alt="Logo" 
+                            className="h-12 w-auto object-contain"
+                        />
+                        
+                        {/* Right: Settings Gear */}
+                        <button
+                            onClick={onOpenSettings}
+                            className={`p-2.5 rounded-full transition-all duration-200 group ${
+                                isDarkMode 
+                                    ? 'hover:bg-white/10 text-white' 
+                                    : 'hover:bg-gray-100 text-gray-700'
+                            }`}
+                            title="Pengaturan"
+                        >
+                            <SettingsIcon className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+                        </button>
+                    </div>
 
-                    {/* Left: Location (clickable to open settings) */}
+                    {/* Info row: Location, Clock, Date */}
+                    <div className="flex items-center justify-between flex-1">
+
+                    {/* Left: Location (clickable to open location settings) */}
                     <button
-                        onClick={onOpenSettings}
+                        onClick={onOpenLocationSettings}
                         className="flex flex-col justify-center min-w-[200px] text-left group cursor-pointer"
                         title="Ubah lokasi"
                     >
-                        <div className="flex items-center gap-2 text-orange-400 mb-1">
+                        <div className={`flex items-center gap-2 mb-1 ${themeColors.text}`}>
                             <MapPin className="w-5 h-5" />
                             <span className="font-medium tracking-wide text-sm uppercase opacity-90">Lokasi</span>
                         </div>
-                        <h1 className="text-2xl font-bold tracking-tight uppercase leading-none group-hover:text-orange-300 transition-colors">
+                        <h1 className={`text-2xl font-semibold tracking-tight uppercase leading-none transition-colors ${themeColors.hover}`}>
                             {locationName}
                         </h1>
                         {subtitle && (
-                            <div className="text-sm text-white/70 mt-1 font-medium leading-tight max-w-[300px] truncate">
+                            <div className={`text-sm mt-1 font-medium leading-tight max-w-[300px] truncate ${
+                                isDarkMode ? 'text-white/70' : 'text-gray-600'
+                            }`}>
                                 {subtitle}
                             </div>
                         )}
@@ -243,22 +276,27 @@ const DesktopMasjidView4 = ({
 
                     {/* Center: Clock */}
                     <div className="flex items-baseline gap-2">
-                        <span className="text-7xl font-bold tracking-tighter tabular-nums leading-none">
+                        <span className={`text-7xl font-bold tracking-tighter tabular-nums leading-none ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
                             {formatTime(currentTime)}
                         </span>
-                        <span className="text-3xl font-medium text-orange-400 tabular-nums">
+                        <span className={`text-3xl font-medium tabular-nums ${themeColors.text}`}>
                             {formatSeconds(currentTime)}
                         </span>
                     </div>
 
                     {/* Right: Date */}
                     <div className="text-right min-w-[200px]">
-                        <div className="text-lg font-medium text-orange-100">
+                        <div className={`text-lg font-medium ${themeColors.textLight}`}>
                             {formatHijri(currentTime)}
                         </div>
-                        <div className="text-xl font-bold">
+                        <div className={`text-xl font-bold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
                             {formatDate(currentTime)}
                         </div>
+                    </div>
                     </div>
                 </div>
 
@@ -271,17 +309,17 @@ const DesktopMasjidView4 = ({
                         <div className="animate-in fade-in zoom-in duration-700">
                             <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex items-center justify-center gap-12 shadow-2xl">
                                 <div className="text-center min-w-[120px]">
-                                    <div className="text-xs font-bold uppercase tracking-widest text-orange-400 mb-2">Khatib</div>
+                                    <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${themeColors.text}`}>Khatib</div>
                                     <div className="text-xl font-bold text-white max-w-[200px] truncate">{fridayDuty.khatib || '-'}</div>
                                 </div>
                                 <div className="w-px h-12 bg-white/10"></div>
                                 <div className="text-center min-w-[120px]">
-                                    <div className="text-xs font-bold uppercase tracking-widest text-orange-400 mb-2">Imam</div>
+                                    <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${themeColors.text}`}>Imam</div>
                                     <div className="text-xl font-bold text-white max-w-[200px] truncate">{fridayDuty.imam || '-'}</div>
                                 </div>
                                 <div className="w-px h-12 bg-white/10"></div>
                                 <div className="text-center min-w-[120px]">
-                                    <div className="text-xs font-bold uppercase tracking-widest text-orange-400 mb-2">Bilal</div>
+                                    <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${themeColors.text}`}>Bilal</div>
                                     <div className="text-xl font-bold text-white max-w-[200px] truncate">{fridayDuty.bilal || '-'}</div>
                                 </div>
                             </div>
@@ -289,21 +327,25 @@ const DesktopMasjidView4 = ({
                     )}
 
                     {/* Controls / Status top right */}
-                    <div className="absolute top-6 right-8 flex gap-3">
-                        <div className="bg-black/60 backdrop-blur text-white px-4 py-2 rounded-full flex items-center gap-2 border border-white/10">
-                            <Volume2 className="w-4 h-4 text-orange-400" />
-                            <span className="text-sm font-medium">Mode Muadzin</span>
+                    {onToggleAdzan && (
+                        <div className="absolute top-6 right-8">
+                            <button
+                                onClick={onToggleAdzan}
+                                className={`backdrop-blur px-4 py-2 rounded-full flex items-center gap-2 border transition-all ${
+                                    adzanEnabled
+                                        ? 'bg-black/60 text-white border-white/10 hover:bg-white/20'
+                                        : 'bg-gray-600/60 text-gray-300 border-gray-500/30 hover:bg-gray-600/80'
+                                }`}
+                                title={adzanEnabled ? 'Adzan aktif - Klik untuk mematikan' : 'Adzan nonaktif - Klik untuk mengaktifkan'}
+                            >
+                                <Volume2 className={`w-4 h-4 ${adzanEnabled ? themeColors.text : 'text-gray-400'}`} />
+                                <span className="text-sm font-medium">
+                                    {adzanEnabled ? 'Adzan Aktif' : 'Adzan Mati'}
+                                </span>
+                            </button>
                         </div>
-
-                        <button
-                            onClick={onOpenSettings}
-                            className="bg-black/60 backdrop-blur text-white p-2 rounded-full border border-white/10 hover:bg-white/10 transition-colors"
-                        >
-                            <SettingsIcon className="w-5 h-5" />
-                        </button>
-                    </div>
+                    )}
                 </div>
-
 
                 {/* --- BOTTOM SECTION --- */}
                 <div className="flex flex-col shrink-0">
@@ -316,30 +358,37 @@ const DesktopMasjidView4 = ({
                             return (
                                 <div
                                     key={prayer.name}
-                                    className={`flex-1 relative rounded-t-xl overflow-hidden transition-all duration-300
+                                    className={`flex-1 relative rounded-t-xl overflow-hidden transition-all duration-300 h-36
                                         ${isActive
-                                            ? 'bg-orange-600 shadow-[0_0_50px_rgba(234,88,12,0.5)] z-20'
-                                            : 'bg-slate-900/80 backdrop-blur-md border-t border-white/10'
+                                            ? `${themeColors.bg} shadow-[0_0_50px_${themeColors.bg.replace('bg-', 'rgba(')}] z-20`
+                                            : isDarkMode
+                                                ? 'bg-slate-900/80 backdrop-blur-md border-t border-white/10'
+                                                : 'bg-white/80 backdrop-blur-md border-t border-gray-200'
                                         }
-                                        h-36
                                     `}
                                 >
-                                    <div className="flex flex-col items-center justify-center h-full text-white">
-                                        <span className={`uppercase tracking-widest text-xs mb-1 font-medium ${isActive ? 'text-orange-100' : 'text-gray-400'}`}>
+                                    <div className={`flex flex-col items-center justify-center h-full ${
+                                        isActive || isDarkMode ? 'text-white' : 'text-gray-900'
+                                    }`}>
+                                        <span className={`uppercase tracking-widest text-xs mb-1 font-medium ${
+                                            isActive 
+                                                ? 'text-white' 
+                                                : isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
                                             {prayer.name}
                                         </span>
                                         <span className={`font-bold tabular-nums tracking-tight ${isActive ? 'text-6xl' : 'text-4xl'}`}>
                                             {prayer.time}
                                         </span>
                                         {isActive && iqamahOffsets?.[prayer.name] && (
-                                            <div className="mt-1 bg-black/20 px-3 py-1 rounded-full text-xs font-medium text-orange-100 border border-white/10">
+                                            <div className="mt-1 bg-white/90 px-3 py-1 rounded-full text-xs font-medium border border-white/20 text-gray-900 font-semibold shadow-sm">
                                                 -{iqamahOffsets[prayer.name]} Menit ke Iqamah
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Active Indicator Bar */}
-                                    {isActive && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/30"></div>}
+                                    {isActive && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/40"></div>}
                                 </div>
                             );
                         })}
@@ -347,7 +396,7 @@ const DesktopMasjidView4 = ({
 
                     {/* Footer - Running Text (Hidden when empty) */}
                     {hasRunningText && (
-                        <div className="h-14 bg-orange-600 relative overflow-hidden flex items-center shadow-lg z-30">
+                        <div className={`h-14 relative overflow-hidden flex items-center shadow-lg z-30 ${themeColors.bg}`}>
                             {runningTextMode === 'marquee' ? (
                                 /* Marquee Mode */
                                 <div className={`marquee ${speedClass} w-full`}>

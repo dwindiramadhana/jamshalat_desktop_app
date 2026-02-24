@@ -691,6 +691,15 @@ function App() {
                 fridayDuty={settings.masjid.fridayDuty}
                 runningTextMode={settings.masjid.runningTextMode || 'marquee'}
                 runningTextSpeed={settings.masjid.runningTextSpeed || 'normal'}
+                masjidLogoUrl={settings.masjid.logoUrl}
+                onOpenSettings={() => {
+                  setSettingsMode('full');
+                  setIsSettingsOpen(true);
+                }}
+                onOpenLocationSettings={() => {
+                  setSettingsMode('location-only');
+                  setIsSettingsOpen(true);
+                }}
                 iqamahOffsets={
                   settings.masjid.iqamahMode === 'unified'
                     ? {
@@ -708,19 +717,30 @@ function App() {
                       Isya: settings.masjid.iqamahDetailed.isya
                     }
                 }
-                onOpenSettings={() => setIsSettingsOpen(true)}
                 isDarkMode={isDarkMode}
                 themeColors={themeColors}
                 secondaryScreen={
                   !isCountdownActive && 
                   countdownState.phase === 'idle' && 
-                  !settings.slides.enabled &&
-                  slideRotation.currentMode !== 'slide'
+                  settings.slides.enabled &&
+                  slideRotation.currentMode !== 'main'
                 }
                 nextPrayerCountdown={getNextPrayerCountdownText()}
                 slideMode={slideRotation.currentMode === 'slide'}
                 currentSlide={slideRotation.currentSlide}
                 isTransitioning={slideRotation.isTransitioning}
+                adzanEnabled={settings.audio.playAdzan}
+                onToggleAdzan={settings.audio.enabled ? () => {
+                  const newSettings = {
+                    ...settings,
+                    audio: {
+                      ...settings.audio,
+                      playAdzan: !settings.audio.playAdzan
+                    }
+                  };
+                  setSettings(newSettings);
+                  localStorage.setItem('settings', JSON.stringify(newSettings));
+                } : undefined}
               />
             ) : (
               <div className="space-y-4">
@@ -738,15 +758,8 @@ function App() {
 
                   {/* Time Display Only */}
                   <div className="p-0 text-center">
-                    <div className={`text-3xl sm:text-4xl font-bold ${isDarkMode ? themeColors.textLight : themeColors.text
-                      }`}>
-                      {currentTime.toLocaleTimeString('id-ID', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false,
-                        hourCycle: 'h23'
-                      }).replace(/\./g, ':')}
+                    <div className={`text-3xl sm:text-4xl font-bold ${isDarkMode ? themeColors.textLight : themeColors.text}`}>
+                      {String(currentTime.getHours()).padStart(2, '0')}:{String(currentTime.getMinutes()).padStart(2, '0')}:{String(currentTime.getSeconds()).padStart(2, '0')}
                     </div>
                   </div>
                 </div>
@@ -881,8 +894,8 @@ function App() {
                             {selectedLocation.name}
                           </span>
                         </button>
-                        {/* Friday Badge - Only visible on Fridays */}
-                        {currentTime.getDay() === 5 && (
+                        {/* Friday Badge on Fridays, otherwise show schedule labels */}
+                        {currentTime.getDay() === 5 ? (
                           <button
                             onClick={() => setIsSunnahJumatOpen(true)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 ${
@@ -895,6 +908,10 @@ function App() {
                             <span className="text-base">✨</span>
                             <span>Sunnah Jumat</span>
                           </button>
+                        ) : (
+                          <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {currentTime.getHours() < 12 ? 'Jadwal Hari Ini' : 'Jadwal Besok'}
+                          </span>
                         )}
                       </div>
 

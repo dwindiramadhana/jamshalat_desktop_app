@@ -23,6 +23,7 @@ const SlideEditorModal = ({ isOpen, onClose, onSave, existingSlide, isDarkMode }
     showOverlay: false,
     overlayPosition: 'bottom-right',
     overlayContent: {
+      showLogo: false,
       showTime: false,
       showNextPrayer: false,
     },
@@ -368,6 +369,20 @@ const SlideEditorModal = ({ isOpen, onClose, onSave, existingSlide, isDarkMode }
                         </div>
 
                         <div className="space-y-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.overlayContent.showLogo || false}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                overlayContent: { ...prev.overlayContent, showLogo: e.target.checked }
+                              }))}
+                            />
+                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Tampilkan logo
+                            </span>
+                          </label>
+
                           <label className="flex items-center gap-2">
                             <input
                               type="checkbox"
