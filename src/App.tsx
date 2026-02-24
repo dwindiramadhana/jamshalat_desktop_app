@@ -910,7 +910,22 @@ function App() {
                           </button>
                         ) : (
                           <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {currentTime.getHours() < 12 ? 'Jadwal Hari Ini' : 'Jadwal Besok'}
+                            {(() => {
+                              const today = new Date();
+                              const isToday = selectedDate.toDateString() === today.toDateString();
+                              
+                              if (!isToday) {
+                                return 'Jadwal Tanggal Ini';
+                              }
+                              
+                              // Check if next prayer is tomorrow's Subuh (all today's prayers passed)
+                              const nextPrayer = prayerTimes.find(p => p.isNext);
+                              const hasNextPrayerToday = nextPrayer && prayerTimes.some(p => 
+                                p.isNext && p.timeInMinutes > (today.getHours() * 60 + today.getMinutes())
+                              );
+                              
+                              return hasNextPrayerToday ? 'Jadwal Hari Ini' : 'Jadwal Besok';
+                            })()}
                           </span>
                         )}
                       </div>
