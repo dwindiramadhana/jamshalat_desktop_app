@@ -21,6 +21,10 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       backgroundColor: '#1e3a5f',
       showSpinner: false
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_prayer',
+      iconColor: '#1e3a5f'
     }
   }
 };
