@@ -20,28 +20,33 @@
       }
     ],
     "security": {
-      "csp": null
-    }
-  },
-  "plugins": {
-    "notification": {
-      "permissions": [
-        "allow-is-permission-granted",
-        "allow-request-permission",
-        "allow-notify",
-        "allow-register-action-types",
-        "allow-register-listener",
-        "allow-cancel",
-        "allow-get-pending",
-        "allow-remove-active",
-        "allow-get-active",
-        "allow-check-permissions",
-        "allow-show",
-        "allow-batch",
-        "allow-list-channels",
-        "allow-delete-channel",
-        "allow-create-channel",
-        "allow-permission-state"
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Main window capability with notification permissions",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "core:webview:allow-internal-toggle-devtools",
+            "notification:allow-is-permission-granted",
+            "notification:allow-request-permission",
+            "notification:allow-notify",
+            "notification:allow-register-action-types",
+            "notification:allow-register-listener",
+            "notification:allow-cancel",
+            "notification:allow-get-pending",
+            "notification:allow-remove-active",
+            "notification:allow-get-active",
+            "notification:allow-check-permissions",
+            "notification:allow-show",
+            "notification:allow-batch",
+            "notification:allow-list-channels",
+            "notification:allow-delete-channel",
+            "notification:allow-create-channel",
+            "notification:allow-permission-state"
+          ]
+        }
       ]
     }
   },

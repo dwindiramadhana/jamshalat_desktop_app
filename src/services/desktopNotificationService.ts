@@ -9,56 +9,67 @@ declare global {
 class DesktopNotificationService {
   private permissionGranted = false;
 
-  private isTauri(): boolean {
-    return typeof window !== 'undefined' && !!window.__TAURI__;
-  }
-
   async initialize() {
-    if (!this.isTauri()) {
-      return;
+    console.log('[Desktop Notifications] Initializing...');
+    
+    try {
+      // Request permission - will only work in Tauri, silently fail in browser
+      const permission = await requestPermission();
+      this.permissionGranted = permission === 'granted';
+      console.log('[Desktop Notifications] Permission result:', permission);
+    } catch (error) {
+      console.log('[Desktop Notifications] Not in Tauri environment or permission denied:', error);
     }
-
-    // Always request permission immediately (shows dialog on first run)
-    const permission = await requestPermission();
-    this.permissionGranted = permission === 'granted';
   }
 
   async sendPrayerNotification(prayerName: string, minutesUntil: number) {
-    if (!this.permissionGranted || !this.isTauri()) return;
+    if (!this.permissionGranted) return;
 
-    const title = minutesUntil === 0 
-      ? `⏰ Waktu ${prayerName}!`
-      : `🕌 ${prayerName} dalam ${minutesUntil} menit`;
+    try {
+      const title = minutesUntil === 0 
+        ? `⏰ Waktu ${prayerName}!`
+        : `🕌 ${prayerName} dalam ${minutesUntil} menit`;
 
-    const body = minutesUntil === 0
-      ? `Saatnya shalat ${prayerName}`
-      : `Bersiaplah untuk shalat ${prayerName}`;
+      const body = minutesUntil === 0
+        ? `Saatnya shalat ${prayerName}`
+        : `Bersiaplah untuk shalat ${prayerName}`;
 
-    await sendNotification({
-      title,
-      body,
-    });
+      await sendNotification({
+        title,
+        body,
+      });
+    } catch (error) {
+      console.log('[Desktop Notifications] Error sending notification:', error);
+    }
   }
 
   async sendIqamahNotification(prayerName: string, minutesUntil: number) {
-    if (!this.permissionGranted || !this.isTauri()) return;
+    if (!this.permissionGranted) return;
 
-    const title = `🕌 Iqamah ${prayerName}`;
-    const body = `Iqamah dalam ${minutesUntil} menit`;
+    try {
+      const title = `🕌 Iqamah ${prayerName}`;
+      const body = `Iqamah dalam ${minutesUntil} menit`;
 
-    await sendNotification({
-      title,
-      body,
-    });
+      await sendNotification({
+        title,
+        body,
+      });
+    } catch (error) {
+      console.log('[Desktop Notifications] Error sending notification:', error);
+    }
   }
 
   async sendCountdownNotification(message: string) {
-    if (!this.permissionGranted || !this.isTauri()) return;
+    if (!this.permissionGranted) return;
 
-    await sendNotification({
-      title: '🕌 Jam Shalat',
-      body: message,
-    });
+    try {
+      await sendNotification({
+        title: '🕌 Jam Shalat',
+        body: message,
+      });
+    } catch (error) {
+      console.log('[Desktop Notifications] Error sending notification:', error);
+    }
   }
 }
 
