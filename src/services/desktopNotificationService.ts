@@ -1,4 +1,4 @@
-import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
+import { requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 
 declare global {
   interface Window {
@@ -18,12 +18,9 @@ class DesktopNotificationService {
       return;
     }
 
-    this.permissionGranted = await isPermissionGranted();
-    
-    if (!this.permissionGranted) {
-      const permission = await requestPermission();
-      this.permissionGranted = permission === 'granted';
-    }
+    // Always request permission immediately (shows dialog on first run)
+    const permission = await requestPermission();
+    this.permissionGranted = permission === 'granted';
   }
 
   async sendPrayerNotification(prayerName: string, minutesUntil: number) {

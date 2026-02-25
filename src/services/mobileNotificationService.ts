@@ -11,14 +11,9 @@ class MobileNotificationService {
     }
 
     try {
-      const permission = await LocalNotifications.checkPermissions();
-      
-      if (permission.display !== 'granted') {
-        const result = await LocalNotifications.requestPermissions();
-        this.isInitialized = result.display === 'granted';
-      } else {
-        this.isInitialized = true;
-      }
+      // Always request permission immediately on first run
+      const result = await LocalNotifications.requestPermissions();
+      this.isInitialized = result.display === 'granted';
 
       if (this.isInitialized) {
         await LocalNotifications.createChannel({
