@@ -6,10 +6,12 @@ import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { MapPin } from 'lucide-react';
 import DesktopMasjidView4 from './components/DesktopMasjidView_4';
 import CountdownOverlay from './components/CountdownOverlay';
 import { usePrayerCountdown } from './hooks/usePrayerCountdown';
 import { useSlideRotation } from './hooks/useSlideRotation';
+import { useNotifications } from './hooks/useNotifications';
 import {
   autoDetectLocation,
   shouldAttemptLocationDetection,
@@ -569,6 +571,12 @@ function App() {
 
   const isCountdownActive = countdownState.phase !== 'idle';
 
+  // Notifications hook - integrates with both desktop and mobile
+  useNotifications({
+    countdownState,
+    enabled: settings.audio.enabled // Use audio setting to control notifications
+  });
+
   // Slide rotation hook
   const slideRotation = useSlideRotation(
     settings.slides,
@@ -886,13 +894,14 @@ function App() {
                             setSettingsMode('location-only');
                             setIsSettingsOpen(true);
                           }}
-                          className="flex items-center gap-1 group cursor-pointer"
+                          className="flex items-center gap-1.5 group cursor-pointer"
                           title="Ubah lokasi"
                         >
                           <span className={`font-medium group-hover:underline ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
                             }`}>
                             {selectedLocation.name}
                           </span>
+                          <MapPin className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                         </button>
                         {/* Friday Badge on Fridays, otherwise show schedule labels */}
                         {currentTime.getDay() === 5 ? (

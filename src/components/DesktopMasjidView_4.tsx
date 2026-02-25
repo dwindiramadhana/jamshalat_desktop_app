@@ -223,10 +223,20 @@ const DesktopMasjidView4 = ({
                         ? 'bg-slate-900/90 text-white border-b border-white/10' 
                         : 'bg-white/90 text-gray-900 border-b border-gray-200'
                 }`}>
-                    {/* Logo row: 3 columns - empty | logo | gear */}
+                    {/* Icon row: location icon | logo | gear icon */}
                     <div className="flex items-center justify-between pt-3 pb-2">
-                        {/* Left: Empty space */}
-                        <div className="w-12"></div>
+                        {/* Left: Location Icon */}
+                        <button
+                            onClick={onOpenLocationSettings}
+                            className={`p-2.5 rounded-full border transition-all duration-200 group ${
+                                isDarkMode 
+                                    ? 'border-white/20 hover:bg-white/10 hover:border-white/40 text-white' 
+                                    : 'border-gray-300 hover:bg-gray-100 hover:border-gray-400 text-gray-700'
+                            }`}
+                            title="Ubah lokasi"
+                        >
+                            <MapPin className="w-6 h-6" />
+                        </button>
                         
                         {/* Center: Logo */}
                         <img 
@@ -238,10 +248,10 @@ const DesktopMasjidView4 = ({
                         {/* Right: Settings Gear */}
                         <button
                             onClick={onOpenSettings}
-                            className={`p-2.5 rounded-full transition-all duration-200 group ${
+                            className={`p-2.5 rounded-full border transition-all duration-200 group ${
                                 isDarkMode 
-                                    ? 'hover:bg-white/10 text-white' 
-                                    : 'hover:bg-gray-100 text-gray-700'
+                                    ? 'border-white/20 hover:bg-white/10 hover:border-white/40 text-white' 
+                                    : 'border-gray-300 hover:bg-gray-100 hover:border-gray-400 text-gray-700'
                             }`}
                             title="Pengaturan"
                         >
@@ -252,16 +262,12 @@ const DesktopMasjidView4 = ({
                     {/* Info row: Location, Clock, Date */}
                     <div className="flex items-center justify-between flex-1">
 
-                    {/* Left: Location (clickable to open location settings) */}
+                    {/* Left: Location (clean text only) */}
                     <button
                         onClick={onOpenLocationSettings}
                         className="flex flex-col justify-center min-w-[200px] text-left group cursor-pointer"
                         title="Ubah lokasi"
                     >
-                        <div className={`flex items-center gap-2 mb-1 ${themeColors.text}`}>
-                            <MapPin className="w-5 h-5" />
-                            <span className="font-medium tracking-wide text-sm uppercase opacity-90">Lokasi</span>
-                        </div>
                         <h1 className={`text-2xl font-semibold tracking-tight uppercase leading-none transition-colors ${themeColors.hover}`}>
                             {locationName}
                         </h1>
