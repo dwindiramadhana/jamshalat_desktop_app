@@ -145,6 +145,11 @@ jobs:
         run: npx cap sync android
 
       - name: Setup Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd android
           echo "Setting up Android signing configuration..."
@@ -155,7 +160,7 @@ jobs:
           KEY_PASSWORD="${ANDROID_KEY_PASSWORD:-jamshalat2024}"
 
           if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
-            echo "Using keystore from ANDROID_KEYSTORE_BASE64 secret..."
+            echo "✅ Using keystore from ANDROID_KEYSTORE_BASE64 secret..."
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           elif [ ! -f "$KEYSTORE_PATH" ]; then
             echo "Creating new Android keystore (no secret provided)..."
