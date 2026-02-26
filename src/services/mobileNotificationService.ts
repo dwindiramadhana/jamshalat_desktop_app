@@ -6,14 +6,21 @@ class MobileNotificationService {
   private notificationId = 1;
 
   async initialize() {
+    console.log('[Mobile Notifications] Initializing...');
+    
     if (!Capacitor.isNativePlatform()) {
+      console.log('[Mobile Notifications] Not native platform, skipping');
       return;
     }
+
+    console.log('[Mobile Notifications] Native platform detected');
 
     try {
       // Always request permission immediately on first run
       const result = await LocalNotifications.requestPermissions();
+      console.log('[Mobile Notifications] Permission result:', result);
       this.isInitialized = result.display === 'granted';
+      console.log('[Mobile Notifications] Initialized:', this.isInitialized);
 
       if (this.isInitialized) {
         await LocalNotifications.createChannel({
@@ -23,6 +30,7 @@ class MobileNotificationService {
           importance: 5,
           visibility: 1,
         });
+        console.log('[Mobile Notifications] Created prayer_times channel');
 
         await LocalNotifications.createChannel({
           id: 'countdown',
@@ -31,16 +39,23 @@ class MobileNotificationService {
           importance: 3,
           visibility: 1,
         });
+        console.log('[Mobile Notifications] Created countdown channel');
       }
     } catch (error) {
-      console.error('Failed to initialize mobile notifications:', error);
+      console.error('[Mobile Notifications] Failed to initialize:', error);
     }
   }
 
   async updateCountdownNotification(prayerName: string, timeRemaining: string) {
-    if (!this.isInitialized) return;
+    console.log('[Mobile Notifications] updateCountdownNotification called:', { prayerName, timeRemaining, isInitialized: this.isInitialized });
+    
+    if (!this.isInitialized) {
+      console.log('[Mobile Notifications] Not initialized, skipping countdown update');
+      return;
+    }
 
     try {
+      console.log('[Mobile Notifications] Scheduling countdown notification...');
       await LocalNotifications.schedule({
         notifications: [{
           id: 999,
@@ -52,8 +67,9 @@ class MobileNotificationService {
           silent: true,
         }]
       });
+      console.log('[Mobile Notifications] Countdown notification scheduled successfully');
     } catch (error) {
-      console.error('Failed to update countdown notification:', error);
+      console.error('[Mobile Notifications] Failed to update countdown notification:', error);
     }
   }
 
