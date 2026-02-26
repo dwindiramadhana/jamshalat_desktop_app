@@ -111,12 +111,104 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+  # Android mobile build using Capacitor (simpler than Tauri mobile)
+  android-build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Setup Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          echo "Setting up Android signing configuration..."
+          
+          KEYSTORE_PATH="../android-release-key.jks"
+          KEYSTORE_PASSWORD="${ANDROID_KEYSTORE_PASSWORD:-jamshalat2024}"
+          KEY_ALIAS="${ANDROID_KEY_ALIAS:-jam-shalat-key}"
+          KEY_PASSWORD="${ANDROID_KEY_PASSWORD:-jamshalat2024}"
+
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "✅ Using keystore from ANDROID_KEYSTORE_BASE64 secret..."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          elif [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Creating new Android keystore (no secret provided)..."
+            keytool -genkey -v -keystore "$KEYSTORE_PATH" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias "$KEY_ALIAS" \
+              -dname "CN=Jam Shalat, OU=Development, O=Jam Shalat Mobile, L=Jakarta, ST=Jakarta, C=ID" \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD"
+            echo "Android keystore created successfully"
+          fi
+          
+          # Create keystore.properties for Gradle signing
+          echo "storeFile=../../android-release-key.jks" > keystore.properties
+          echo "storePassword=$KEYSTORE_PASSWORD" >> keystore.properties
+          echo "keyAlias=$KEY_ALIAS" >> keystore.properties
+          echo "keyPassword=$KEY_PASSWORD" >> keystore.properties
+          echo "✅ Keystore properties created"
+
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload Android artifacts
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-shalat-android-apk
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload APK to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android/app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Combine all artifacts into a single release
   release:
     permissions:
       contents: write
     runs-on: ubuntu-22.04
-    needs: build
+    needs: [build, android-build]
     if: github.event_name == 'release'
     steps:
       - name: Checkout repository
@@ -142,6 +234,7 @@ jobs:
           echo "- **Windows**: Download the `.msi` installer" >> release_notes.md
           echo "- **macOS**: Download the `.dmg` file (Universal - Intel & Apple Silicon)" >> release_notes.md
           echo "- **Linux**: Download the `.AppImage` or `.deb` package" >> release_notes.md
+          echo "- **Android**: Download the `.apk` file for sideloading" >> release_notes.md
           echo "" >> release_notes.md
           echo "### 🔧 Installation:" >> release_notes.md
           echo "#### Windows & Linux:" >> release_notes.md
@@ -154,6 +247,12 @@ jobs:
           echo "3. **Important**: If you see \"damaged app\" error, run this command in Terminal:" >> release_notes.md
           echo "   \`sudo xattr -rd com.apple.quarantine /Applications/\"Jam Shalat.app\"\`" >> release_notes.md
           echo "4. Alternatively, right-click the app → Open → Open (bypass Gatekeeper)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Android:" >> release_notes.md
+          echo "1. Download the `.apk` file" >> release_notes.md
+          echo "2. Enable \"Unknown Sources\" in Android Settings → Security" >> release_notes.md
+          echo "3. Install the APK file" >> release_notes.md
+          echo "4. Grant necessary permissions when prompted" >> release_notes.md
           echo "" >> release_notes.md
           echo "### ⚙️ Setup:" >> release_notes.md
           echo "1. Configure your location and preferences in Settings" >> release_notes.md

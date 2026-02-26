@@ -1,15 +1,41 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import SettingsModal from './components/SettingsModal';
+import SunnahJumatDialog from './components/SunnahJumatDialog';
 import { fetchLocations, fetchPrayerTimes } from './api';
 import type { LocationData, PrayerTime } from './types';
 import type { Settings, UnsplashImage } from './types/settings';
 import { DEFAULT_SETTINGS } from './types/settings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { MapPin } from 'lucide-react';
+import DesktopMasjidView4 from './components/DesktopMasjidView_4';
+import CountdownOverlay from './components/CountdownOverlay';
+import { NotificationDebugPanel } from './components/NotificationDebugPanel';
+import { usePrayerCountdown } from './hooks/usePrayerCountdown';
+import { useSlideRotation } from './hooks/useSlideRotation';
+import { useNotifications } from './hooks/useNotifications';
+import {
+  autoDetectLocation,
+  shouldAttemptLocationDetection,
+  saveLocationDetectionResult,
+  type LocationDetectionResult
+} from './services/locationService';
+
+// Platform detection for Android-specific styling
+const isAndroid = () => {
+  if (typeof window !== 'undefined') {
+    return /Android/i.test(window.navigator.userAgent) ||
+      (window as any).__TAURI_METADATA__?.currentPlatform === 'android';
+  }
+  return false;
+};
 
 // Define the full settings type that includes all possible settings
 type AppSettings = Settings & {
   showNextPrayerLabel: boolean;
 };
+
+const DESKTOP_MIN_WIDTH = 900;
+const DESKTOP_MIN_ASPECT_RATIO = 4 / 3;
 
 // Default values for settings
 const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -28,7 +54,17 @@ interface FormattedPrayerTime extends PrayerTime {
   timeInMinutes: number;
 }
 
+
 function App() {
+  const getLayoutMode = () => {
+    if (typeof window === 'undefined') return 'mobile';
+    const width = window.innerWidth;
+    const height = window.innerHeight || 1;
+    const ratio = width / height;
+    return width >= DESKTOP_MIN_WIDTH && ratio >= DESKTOP_MIN_ASPECT_RATIO ? 'desktop' : 'mobile';
+  };
+
+  const [layoutMode, setLayoutMode] = useState<'mobile' | 'desktop'>(getLayoutMode);
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('appSettings');
     if (saved) {
@@ -41,6 +77,26 @@ function App() {
             ...DEFAULT_APP_SETTINGS.background,
             ...parsed.background,
           },
+          masjid: {
+            ...DEFAULT_APP_SETTINGS.masjid,
+            ...(parsed.masjid || {}),
+            iqamahDetailed: {
+              ...DEFAULT_APP_SETTINGS.masjid.iqamahDetailed,
+              ...(parsed.masjid?.iqamahDetailed || {}),
+            },
+            fridayDuty: {
+              ...DEFAULT_APP_SETTINGS.masjid.fridayDuty,
+              ...(parsed.masjid?.fridayDuty || {}),
+            }
+          },
+          audio: {
+            ...DEFAULT_APP_SETTINGS.audio,
+            ...(parsed.audio || {}),
+          },
+          slides: {
+            ...DEFAULT_APP_SETTINGS.slides,
+            ...(parsed.slides || {}),
+          }
         };
       } catch (e) {
         console.error('Failed to parse saved settings', e);
@@ -49,24 +105,48 @@ function App() {
     }
     return DEFAULT_APP_SETTINGS;
   });
-  
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsMode, setSettingsMode] = useState<'full' | 'location-only'>('full');
+  const [isSunnahJumatOpen, setIsSunnahJumatOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState<UnsplashImage | null>(null);
   const backgroundTimer = useRef<NodeJS.Timeout | null>(null);
   const [locations, setLocations] = useState<FormattedLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<FormattedLocation | null>(null);
   const [prayerTimes, setPrayerTimes] = useState<FormattedPrayerTime[]>([]);
   const [loading, setLoading] = useState(true);
+  const [prayerTimesLoading, setPrayerTimesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [locationDetection, setLocationDetection] = useState<{
+    isDetecting: boolean;
+    result: LocationDetectionResult | null;
+  }>({
+    isDetecting: false,
+    result: null
+  });
 
   // Update current time every second
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-    
+
     return () => clearInterval(timer);
+  }, []);
+
+  // Update layout mode on resize/orientation change
+  useEffect(() => {
+    const updateLayoutMode = () => setLayoutMode(getLayoutMode());
+    updateLayoutMode();
+    window.addEventListener('resize', updateLayoutMode);
+    window.addEventListener('orientationchange', updateLayoutMode);
+    return () => {
+      window.removeEventListener('resize', updateLayoutMode);
+      window.removeEventListener('orientationchange', updateLayoutMode);
+    };
   }, []);
 
   // Auto-advance prayer highlight and fetch tomorrow's schedule when needed
@@ -119,15 +199,15 @@ function App() {
       const year = tomorrow.getFullYear();
       const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
       const day = String(tomorrow.getDate()).padStart(2, '0');
-      
+
       const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
-      
+
       if (!prayerData.status || !prayerData.data?.jadwal) {
         throw new Error('Invalid prayer times data received');
       }
-      
+
       const { jadwal } = prayerData.data;
-      
+
       const prayerTimesList = [
         { name: 'Subuh', time: jadwal.subuh },
         { name: 'Terbit', time: jadwal.terbit },
@@ -137,18 +217,18 @@ function App() {
         { name: 'Maghrib', time: jadwal.maghrib },
         { name: 'Isya', time: jadwal.isya },
       ];
-      
+
       const formattedTimes = prayerTimesList.map((prayer, index) => {
         const [hours, minutes] = prayer.time.split(':').map(Number);
         const prayerTotalMinutes = hours * 60 + minutes;
-        
+
         return {
           ...prayer,
           isNext: index === 0, // Highlight first prayer (Subuh) for tomorrow
           timeInMinutes: prayerTotalMinutes,
         };
       });
-      
+
       setPrayerTimes(formattedTimes);
     } catch (err) {
       console.error('Error loading tomorrow prayer times:', err);
@@ -157,11 +237,20 @@ function App() {
 
   // Save settings to localStorage when they change
   useEffect(() => {
-    localStorage.setItem('appSettings', JSON.stringify(settings));
-    
+    try {
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.error('localStorage quota exceeded. Consider reducing image sizes or number of slides.');
+        alert('Penyimpanan penuh! Gambar slide terlalu besar. Coba:\n1. Gunakan gambar lebih kecil\n2. Hapus beberapa slide\n3. Gunakan warna/gradien daripada gambar');
+      } else {
+        console.error('Error saving settings:', error);
+      }
+    }
+
     // Handle background rotation
-    if (settings.background.images.length > 1) {
-      // Enable rotation for both auto and static types when there are multiple images
+    if (settings.background.images.length > 0) {
+      // Enable rotation for both auto and static types
       if (settings.background.type === 'auto') {
         startBackgroundRotation(settings.background.images, settings.background.rotationInterval);
       } else if (settings.background.type === 'static') {
@@ -173,7 +262,7 @@ function App() {
       setCurrentImage(null);
       clearBackgroundRotation();
     }
-    
+
     return () => {
       clearBackgroundRotation();
     };
@@ -182,16 +271,16 @@ function App() {
   // Background rotation logic
   const startBackgroundRotation = (images: UnsplashImage[], intervalMinutes: number) => {
     clearBackgroundRotation();
-    
+
     const intervalMs = intervalMinutes * 60 * 1000;
-    
+
     if (images.length === 0) return;
-    
+
     if (settings.background.type === 'auto') {
       // For auto images, use currentImage state
       let currentIndex = 0;
       setCurrentImage(images[0]);
-      
+
       if (images.length > 1) {
         backgroundTimer.current = setInterval(() => {
           currentIndex = (currentIndex + 1) % images.length;
@@ -201,7 +290,7 @@ function App() {
     } else if (settings.background.type === 'static') {
       // For static images, update currentImageIndex in settings
       let currentIndex = settings.background.currentImageIndex || 0;
-      
+
       if (images.length > 1) {
         backgroundTimer.current = setInterval(() => {
           currentIndex = (currentIndex + 1) % images.length;
@@ -224,6 +313,45 @@ function App() {
     }
   };
 
+  // Auto-detect location function - silently applies detected location
+  const attemptLocationDetection = useCallback(async (availableLocations: FormattedLocation[]) => {
+    if (!shouldAttemptLocationDetection()) {
+      console.log('Skipping location detection based on user preferences or recent detection');
+      return false;
+    }
+
+    setLocationDetection(prev => ({ ...prev, isDetecting: true }));
+
+    try {
+      const result = await autoDetectLocation(availableLocations);
+      setLocationDetection(prev => ({
+        ...prev,
+        isDetecting: false,
+        result
+      }));
+
+      if (result.success && result.closestCity) {
+        saveLocationDetectionResult(result);
+        console.log(`Location detected and applied: ${result.closestCity.name} via ${result.method}`);
+        // Silently apply the detected location
+        setSelectedLocation(result.closestCity);
+        return result.closestCity;
+      } else {
+        console.log('Location detection failed:', result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Location detection error:', error);
+      setLocationDetection(prev => ({
+        ...prev,
+        isDetecting: false,
+        result: { success: false, error: 'Location detection failed' }
+      }));
+      return false;
+    }
+  }, []);
+
+
   // Load locations on mount
   useEffect(() => {
     const loadLocations = async () => {
@@ -235,13 +363,28 @@ function App() {
           name: loc.lokasi || loc.name || 'Unknown Location'
         }));
         setLocations(formattedLocations);
-        
-        // Try to load saved location or use first location
+
+        // Check if we have a saved location
         const savedLocationId = localStorage.getItem('selectedLocationId');
-        const locationToSelect = savedLocationId 
-          ? formattedLocations.find(loc => loc.id === savedLocationId) || formattedLocations[0]
-          : formattedLocations[0];
-          
+        let locationToSelect: FormattedLocation | null = null;
+
+        if (savedLocationId) {
+          locationToSelect = formattedLocations.find(loc => loc.id === savedLocationId) || null;
+        }
+
+        // If no saved location, attempt auto-detection
+        if (!locationToSelect) {
+          console.log('No saved location found, attempting auto-detection...');
+          const detectedLocation = await attemptLocationDetection(formattedLocations);
+
+          if (detectedLocation) {
+            locationToSelect = detectedLocation;
+          } else {
+            // Fallback to first location if detection fails
+            locationToSelect = formattedLocations[0] || null;
+          }
+        }
+
         if (locationToSelect) {
           setSelectedLocation(locationToSelect);
         }
@@ -254,34 +397,33 @@ function App() {
     };
 
     loadLocations();
-  }, []);
+  }, [attemptLocationDetection]);
 
   // Load prayer times function
-  const loadPrayerTimes = useCallback(async () => {
+  const loadPrayerTimes = useCallback(async (date: Date = selectedDate) => {
     if (!selectedLocation) return;
-    
+
     try {
-      setLoading(true);
+      setPrayerTimesLoading(true);
       setError(null);
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+
       const prayerData = await fetchPrayerTimes(selectedLocation.id, new Date(`${year}-${month}-${day}`));
-      
+
       if (!prayerData.status || !prayerData.data?.jadwal) {
         throw new Error('Invalid prayer times data received');
       }
-      
+
       const { jadwal } = prayerData.data;
-      
+
       // Format prayer times with next prayer highlighting
       const currentTime = new Date();
       const currentHours = currentTime.getHours();
       const currentMinutes = currentTime.getMinutes();
       const currentTotalMinutes = currentHours * 60 + currentMinutes;
-      
+
       const prayerTimesList = [
         { name: 'Subuh', time: jadwal.subuh },
         { name: 'Terbit', time: jadwal.terbit },
@@ -291,45 +433,45 @@ function App() {
         { name: 'Maghrib', time: jadwal.maghrib },
         { name: 'Isya', time: jadwal.isya },
       ];
-      
+
       // Find the next prayer time
       let nextPrayerIndex = -1;
       let earliestNextDayIndex = -1;
-      
+
       const formattedTimes = prayerTimesList.map((prayer, index) => {
         const [hours, minutes] = prayer.time.split(':').map(Number);
         const prayerTotalMinutes = hours * 60 + minutes;
-        
+
         if (prayerTotalMinutes > currentTotalMinutes && nextPrayerIndex === -1) {
           nextPrayerIndex = index;
         }
-        
-        if (earliestNextDayIndex === -1 || 
-            prayerTotalMinutes < prayerTimesList[earliestNextDayIndex].time.split(':').map(Number).reduce((h, m) => h * 60 + m, 0)) {
+
+        if (earliestNextDayIndex === -1 ||
+          prayerTotalMinutes < prayerTimesList[earliestNextDayIndex].time.split(':').map(Number).reduce((h, m) => h * 60 + m, 0)) {
           earliestNextDayIndex = index;
         }
-        
+
         return {
           ...prayer,
           isNext: false,
           timeInMinutes: prayerTotalMinutes,
         };
       });
-      
+
       const nextIndex = nextPrayerIndex !== -1 ? nextPrayerIndex : earliestNextDayIndex;
       if (nextIndex !== -1) {
         formattedTimes[nextIndex].isNext = true;
       }
-      
+
       setPrayerTimes(formattedTimes);
+      setPrayerTimesLoading(false);
       localStorage.setItem('selectedLocationId', selectedLocation.id);
     } catch (err) {
-      setError('Gagal memuat jadwal shalat. Silakan coba lagi.');
       console.error('Error loading prayer times:', err);
-    } finally {
-      setLoading(false);
+      setError(err instanceof Error ? err.message : 'Failed to load prayer times');
+      setPrayerTimesLoading(false);
     }
-  }, [selectedLocation]);
+  }, [selectedDate, selectedLocation]);
 
   // Load prayer times when location changes
   useEffect(() => {
@@ -358,6 +500,39 @@ function App() {
     }
   };
 
+  // Handle date selection
+  const handleDateSelect = useCallback((date: Date) => {
+    setSelectedDate(date);
+    loadPrayerTimes(date);
+  }, [loadPrayerTimes]);
+
+  // Generate date array around selected date (responsive: 5 mobile, 7 desktop)
+  const getDateSliderDates = useCallback((centerDate: Date, isMobile: boolean = false) => {
+    const dates = [];
+    const range = isMobile ? 2 : 3; // -2 to +2 for mobile (5 dates), -3 to +3 for desktop (7 dates)
+    for (let i = -range; i <= range; i++) {
+      const date = new Date(centerDate);
+      date.setDate(centerDate.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  }, []);
+
+  // Get month name in Indonesian
+  const getMonthName = useCallback((date: Date) => {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return months[date.getMonth()];
+  }, []);
+
+  // Get display month for slider (shows month of selected date)
+  const getSliderDisplayMonth = useCallback((selectedDate: Date) => {
+    return `${getMonthName(selectedDate)} ${selectedDate.getFullYear()}`;
+  }, [getMonthName]);
+
+
   // Get theme color classes
   const getThemeColorClasses = (themeColor: string = 'indigo') => {
     const colorMap: Record<string, { bg: string; text: string; textLight: string; hover: string }> = {
@@ -375,240 +550,566 @@ function App() {
 
   const themeColors = getThemeColorClasses(settings.themeColor);
   const isDarkMode = settings.darkMode;
+  const isDesktopLayout = layoutMode === 'desktop';
+
+  // Prayer countdown hook
+  const iqamahDetailedMap: Record<string, number> = {
+    subuh: settings.masjid.iqamahDetailed.subuh,
+    dzuhur: settings.masjid.iqamahDetailed.dzuhur,
+    ashar: settings.masjid.iqamahDetailed.ashar,
+    maghrib: settings.masjid.iqamahDetailed.maghrib,
+    isya: settings.masjid.iqamahDetailed.isya,
+  };
+
+  const countdownState = usePrayerCountdown(
+    currentTime,
+    prayerTimes,
+    settings.audio,
+    settings.masjid.iqamahMode,
+    settings.masjid.iqamahUnified,
+    iqamahDetailedMap
+  );
+
+  const isCountdownActive = countdownState.phase !== 'idle';
+
+  // Notifications hook - integrates with both desktop and mobile
+  useNotifications({
+    countdownState,
+    enabled: settings.audio.enabled // Use audio setting to control notifications
+  });
+
+  // Slide rotation hook
+  const slideRotation = useSlideRotation(
+    settings.slides,
+    isCountdownActive,
+    isDesktopLayout
+  );
+
+  // Format next prayer countdown for secondary screen
+  const getNextPrayerCountdownText = (): string | undefined => {
+    const nextPrayer = prayerTimes.find(p => p.isNext);
+    if (!nextPrayer) return undefined;
+    const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const diff = nextPrayer.timeInMinutes - nowMinutes;
+    if (diff <= 0) return undefined;
+    const hours = Math.floor(diff / 60);
+    const mins = diff % 60;
+    if (hours > 0) return `${hours} jam ${mins} menit lagi`;
+    return `${mins} menit lagi`;
+  };
+
+  const loadingContent = (
+    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+      }`}>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+      <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
+        {locationDetection.isDetecting ? 'Mendeteksi lokasi dan memuat jadwal shalat...' : 'Memuat jadwal shalat...'}
+      </p>
+    </div>
+  );
+
+  const errorContent = (
+    <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
+      }`}>
+      <p className="text-red-600 mb-4">{error}</p>
+      <button
+        onClick={() => loadPrayerTimes()}
+        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+      >
+        Coba Lagi
+      </button>
+    </div>
+  );
 
   return (
     <>
-      <div className={`min-h-screen relative ${
-        isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
-      }`}>
+      <div className={`min-h-screen relative ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
+        }`}>
         {/* Background Image */}
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
             backgroundImage: settings.background.type === 'auto' && currentImage
               ? `url(${currentImage.url})`
               : settings.background.type === 'static' && settings.background.images.length > 0 && settings.background.currentImageIndex !== undefined
-              ? `url(${settings.background.images[settings.background.currentImageIndex]?.url})`
-              : 'none'
+                ? `url(${settings.background.images[settings.background.currentImageIndex]?.url})`
+                : 'none'
           }}
         />
-        
-        {/* Overlay */}
-        <div className={`absolute inset-0 ${
-          isDarkMode ? 'bg-black bg-opacity-60' : 'bg-black bg-opacity-40'
-        }`} />
-        
-        {/* Settings Button */}
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className={`fixed top-4 right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${
-            isDarkMode 
-              ? 'bg-gray-800 bg-opacity-75 hover:bg-gray-700/90 text-gray-200' 
-              : `bg-white bg-opacity-75 hover:bg-white/90 ${themeColors.text}`
-          }`}
-          title="Pengaturan"
-        >
-          <Cog6ToothIcon className="h-6 w-6" />
-        </button>
-        
-        {/* Main Content */}
-        <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
-          <div className="w-full max-w-md">
-            {loading ? (
-              <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
-                isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
-              }`}>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>Memuat jadwal shalat...</p>
-              </div>
-            ) : error ? (
-              <div className={`p-8 rounded-2xl shadow-xl backdrop-blur-sm text-center ${
-                isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
-              }`}>
-                <p className="text-red-600 mb-4">{error}</p>
-                <button
-                  onClick={() => loadPrayerTimes()}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Coba Lagi
-                </button>
-              </div>
-            ) : (
-              <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${
-                isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
-              }`}>
-                {/* Logo */}
-                <div className="text-center mb-4">
-                  <img 
-                    src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"} 
-                    alt="Jam Shalat App Logo" 
-                    className="h-12 w-auto mx-auto"
-                  />
-                </div>
 
-                {/* Date and Time Display */}
-                <div className="mb-6 p-4 bg-white/30 rounded-xl">
-                  <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className={`text-3xl sm:text-4xl font-bold ${
-                      isDarkMode ? themeColors.textLight : themeColors.text
-                    }`}>
-                      {currentTime.toLocaleTimeString('id-ID', { 
-                        hour: '2-digit', 
-                        minute: '2-digit', 
-                        second: '2-digit', 
-                        hour12: false,
-                        hourCycle: 'h23'
-                      }).replace(/\./g, ':')}
-                    </div>
-                    <div className="text-center sm:text-right">
-                      <div className={`font-medium ${
-                        isDarkMode ? 'text-gray-200' : 'text-gray-800'
-                      }`}>
-                        {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                      </div>
-                      <div className={`text-base font-medium ${
-                        isDarkMode ? 'text-gray-300' : themeColors.text
-                      }`}>
-                        {new Intl.DateTimeFormat('id-u-ca-islamic', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                          calendar: 'islamic-umalqura',
-                          numberingSystem: 'latn'
-                        }).format(new Date())} H
-                      </div>
+        {/* Overlay */}
+        <div className={`absolute inset-0 ${isDarkMode ? 'bg-black/60' : 'bg-black/40'
+          }`} />
+
+        {/* Settings Button */}
+        {!isDesktopLayout && (
+          <button
+            onClick={() => {
+              setSettingsMode('full');
+              setIsSettingsOpen(true);
+            }}
+            className={`fixed ${isAndroid() ? 'top-12' : 'top-4'} right-4 p-2 rounded-full shadow-lg z-50 transition-all backdrop-blur-sm ${isDarkMode
+              ? 'bg-gray-800/75 hover:bg-gray-700/90 text-gray-200'
+              : `bg-white/75 hover:bg-white/90 ${themeColors.text}`
+              }`}
+            title="Pengaturan"
+          >
+            <Cog6ToothIcon className="h-6 w-6" />
+          </button>
+        )}
+
+        {/* Enhanced Location Detection Status */}
+        {locationDetection.isDetecting && (
+          <div className={`fixed ${isAndroid() ? 'top-16' : 'top-4'} left-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300`}>
+            <div className={`p-4 rounded-xl shadow-xl border ${isDarkMode
+              ? 'bg-gray-800 border-gray-700'
+              : 'bg-white border-gray-200'
+              }`}>
+              <div className="flex items-center space-x-3">
+                <div className={`animate-spin rounded-full h-5 w-5 border-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'} border-t-indigo-600`}></div>
+                <div>
+                  <p className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                    Mendeteksi Lokasi
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Mencari kota terdekat...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+
+        {/* Main Content */}
+        <div className={`min-h-screen flex ${isDesktopLayout ? 'items-stretch p-0' : 'items-center p-4'} justify-center relative z-10`}>
+          <div className={`w-full ${isDesktopLayout ? 'max-w-[1920px]' : 'max-w-md'}`}>
+            {loading ? (
+              loadingContent
+            ) : error ? (
+              errorContent
+            ) : isDesktopLayout ? (
+              <DesktopMasjidView4
+                currentTime={currentTime}
+                selectedDate={selectedDate}
+                locationName={settings.masjid.name || selectedLocation?.name || 'Jam Shalat'}
+                subtitle={settings.masjid.address || (selectedLocation?.name ? `Jadwal Shalat untuk ${selectedLocation.name}` : undefined)}
+                message=""
+                prayerTimes={prayerTimes}
+                tickerMessages={settings.masjid.runningText}
+                fridayDuty={settings.masjid.fridayDuty}
+                runningTextMode={settings.masjid.runningTextMode || 'marquee'}
+                runningTextSpeed={settings.masjid.runningTextSpeed || 'normal'}
+                masjidLogoUrl={settings.masjid.logoUrl}
+                onOpenSettings={() => {
+                  setSettingsMode('full');
+                  setIsSettingsOpen(true);
+                }}
+                onOpenLocationSettings={() => {
+                  setSettingsMode('location-only');
+                  setIsSettingsOpen(true);
+                }}
+                iqamahOffsets={
+                  settings.masjid.iqamahMode === 'unified'
+                    ? {
+                      Subuh: settings.masjid.iqamahUnified,
+                      Dzuhur: settings.masjid.iqamahUnified,
+                      Ashar: settings.masjid.iqamahUnified,
+                      Maghrib: settings.masjid.iqamahUnified,
+                      Isya: settings.masjid.iqamahUnified
+                    }
+                    : {
+                      Subuh: settings.masjid.iqamahDetailed.subuh,
+                      Dzuhur: settings.masjid.iqamahDetailed.dzuhur,
+                      Ashar: settings.masjid.iqamahDetailed.ashar,
+                      Maghrib: settings.masjid.iqamahDetailed.maghrib,
+                      Isya: settings.masjid.iqamahDetailed.isya
+                    }
+                }
+                isDarkMode={isDarkMode}
+                themeColors={themeColors}
+                secondaryScreen={
+                  !isCountdownActive && 
+                  countdownState.phase === 'idle' && 
+                  settings.slides.enabled &&
+                  slideRotation.currentMode !== 'main'
+                }
+                nextPrayerCountdown={getNextPrayerCountdownText()}
+                slideMode={slideRotation.currentMode === 'slide'}
+                currentSlide={slideRotation.currentSlide}
+                isTransitioning={slideRotation.isTransitioning}
+                adzanEnabled={settings.audio.playAdzan}
+                onToggleAdzan={settings.audio.enabled ? () => {
+                  const newSettings = {
+                    ...settings,
+                    audio: {
+                      ...settings.audio,
+                      playAdzan: !settings.audio.playAdzan
+                    }
+                  };
+                  setSettings(newSettings);
+                  localStorage.setItem('settings', JSON.stringify(newSettings));
+                } : undefined}
+              />
+            ) : (
+              <div className="space-y-4">
+                {/* Header Card */}
+                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${isDarkMode ? 'bg-gray-800/75' : 'bg-white/75'
+                  }`}>
+                  {/* Logo */}
+                  <div className="text-center mb-4">
+                    <img
+                      src={isDarkMode ? "/jamshalatapplogoWhite.png" : "/jamshalatapplogo.png"}
+                      alt="Jam Shalat App Logo"
+                      className="h-12 w-auto mx-auto"
+                    />
+                  </div>
+
+                  {/* Time Display Only */}
+                  <div className="p-0 text-center">
+                    <div className={`text-3xl sm:text-4xl font-bold ${isDarkMode ? themeColors.textLight : themeColors.text}`}>
+                      {String(currentTime.getHours()).padStart(2, '0')}:{String(currentTime.getMinutes()).padStart(2, '0')}:{String(currentTime.getSeconds()).padStart(2, '0')}
                     </div>
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className={`border-t mb-6 ${
-                  isDarkMode ? 'border-gray-600' : 'border-gray-300'
-                }`} />
+                {/* Date Slider Card */}
+                <div className={`p-4 rounded-2xl shadow-xl backdrop-blur-md relative ${isDarkMode ? 'bg-gray-800/75' : 'bg-white/75'
+                  }`}>
+                  {/* Today shortcut button - Absolute positioned */}
+                  {selectedDate.toDateString() !== new Date().toDateString() && (
+                    <button
+                      onClick={() => handleDateSelect(new Date())}
+                      className={`absolute top-3 right-3 px-2 py-1 text-xs font-medium rounded border transition-colors ${settings.themeColor === 'gray' ? 'border-gray-600 text-gray-600 hover:bg-gray-50' :
+                        settings.themeColor === 'red' ? 'border-red-600 text-red-600 hover:bg-red-50' :
+                          settings.themeColor === 'yellow' ? 'border-yellow-600 text-yellow-600 hover:bg-yellow-50' :
+                            settings.themeColor === 'green' ? 'border-green-600 text-green-600 hover:bg-green-50' :
+                              settings.themeColor === 'blue' ? 'border-blue-600 text-blue-600 hover:bg-blue-50' :
+                                settings.themeColor === 'purple' ? 'border-purple-600 text-purple-600 hover:bg-purple-50' :
+                                  settings.themeColor === 'pink' ? 'border-pink-600 text-pink-600 hover:bg-pink-50' :
+                                    'border-indigo-600 text-indigo-600 hover:bg-indigo-50'
+                        } ${isDarkMode ? 'hover:bg-gray-700/50' : ''}`}
+                    >
+                      Hari Ini
+                    </button>
+                  )}
+                  {/* Month Display with Custom Date Picker */}
+                  <div className="text-center mb-4">
+                    <button
+                      onClick={() => setShowDatePicker(true)}
+                      className={`text-lg font-semibold hover:opacity-75 transition-opacity ${isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                        }`}
+                    >
+                      {getSliderDisplayMonth(selectedDate)}
+                    </button>
+                  </div>
 
-                {selectedLocation && (
-                  <>
-                    {/* Location and Schedule Label Row */}
-                    <div className={`px-3 py-2 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg transition-colors ${
-                      isDarkMode
-                        ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
-                        : 'bg-white/50 hover:bg-white/70 text-gray-800'
-                    } backdrop-blur-sm`}>
-                      <div className="flex items-center">
-                        <span className={`font-medium ${
-                          isDarkMode ? 'text-gray-100' : 'text-gray-800'
-                        }`}>
-                          {selectedLocation.name}
-                        </span>
-                      </div>
-                      <span className={`font-semibold text-sm ${
-                        isDarkMode ? 'text-gray-200' : themeColors.text
+                  {/* Hijri Date */}
+                  <div className="text-center mb-4">
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : themeColors.text
                       }`}>
-                        {(() => {
-                          const currentTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                          const allPrayersPassed = prayerTimes.every(prayer => {
-                            return prayer.timeInMinutes <= currentTotalMinutes;
-                          });
-                          return allPrayersPassed ? 'Jadwal Besok:' : 'Jadwal hari ini:';
-                        })()} 
-                      </span>
+                      {new Intl.DateTimeFormat('id-u-ca-islamic', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        calendar: 'islamic-umalqura',
+                        numberingSystem: 'latn'
+                      }).format(selectedDate)}
+                    </div>
+                  </div>
+
+                  {/* Responsive Date Slider */}
+                  <div className="flex justify-center space-x-1 xs:space-x-2">
+                    {/* Extra small screens: 5 dates */}
+                    <div className="flex space-x-1 xs:space-x-2 xs:hidden">
+                      {getDateSliderDates(selectedDate, true).map((date, index) => {
+                        const isActive = date.toDateString() === selectedDate.toDateString();
+                        const distance = Math.abs(index - 2); // Center is index 2 for mobile
+
+                        let opacity = '100';
+                        if (distance === 1) opacity = '75';
+                        if (distance === 2) opacity = '50';
+
+                        return (
+                          <button
+                            key={date.toISOString()}
+                            onClick={() => handleDateSelect(date)}
+                            className={`w-10 h-10 rounded-lg font-semibold transition-all duration-200 hover:scale-105 text-sm ${isActive
+                              ? `${themeColors.bg} text-white shadow-lg`
+                              : `${isDarkMode
+                                ? `bg-gray-700 text-gray-300 hover:bg-gray-600`
+                                : `bg-gray-100 text-gray-700 hover:bg-gray-200`
+                              } opacity-${opacity}`
+                              }`}
+                          >
+                            {date.getDate()}
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    <div className="space-y-3">
-                      {prayerTimes
-                        .filter(prayer => {
-                          // Always show main prayers
-                          if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
-                          // Show Terbit and Dhuha based on settings
-                          if (prayer.name === 'Terbit') return settings.showTerbit;
-                          if (prayer.name === 'Dhuha') return settings.showDhuha;
-                          return true;
-                        })
-                        .map((prayer) => (
-                          <div 
-                            key={prayer.name}
-                            className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${
-                              prayer.isNext 
-                                ? `${themeColors.bg} text-white` 
-                                : isDarkMode
-                                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-100'
-                                : 'bg-white/50 hover:bg-white/70 text-gray-800'
-                            } backdrop-blur-sm`}
+                    {/* XS+ screens: 7 dates */}
+                    <div className="hidden xs:flex space-x-2">
+                      {getDateSliderDates(selectedDate, false).map((date, index) => {
+                        const isActive = date.toDateString() === selectedDate.toDateString();
+                        const distance = Math.abs(index - 3); // Center is index 3 for desktop
+
+                        let opacity = '100';
+                        if (distance === 1) opacity = '75';
+                        if (distance === 2) opacity = '50';
+                        if (distance === 3) opacity = '25';
+
+                        return (
+                          <button
+                            key={date.toISOString()}
+                            onClick={() => handleDateSelect(date)}
+                            className={`w-12 h-12 rounded-lg font-semibold transition-all duration-200 hover:scale-105 ${isActive
+                              ? `${themeColors.bg} text-white shadow-lg`
+                              : `${isDarkMode
+                                ? `bg-gray-700 text-gray-300 hover:bg-gray-600`
+                                : `bg-gray-100 text-gray-700 hover:bg-gray-200`
+                              } opacity-${opacity}`
+                              }`}
                           >
-                            <div className="flex items-center">
-                              <span className={`font-medium ${
-                                prayer.isNext 
-                                  ? 'text-white' 
-                                  : isDarkMode
-                                  ? 'text-gray-100'
-                                  : 'text-gray-800'
-                              }`}>
-                                {prayer.name}
-                              </span>
-                            </div>
-                            <span className={`font-semibold ${
-                              prayer.isNext 
-                                ? 'text-white' 
-                                : isDarkMode
-                                ? 'text-gray-200'
-                                : themeColors.text
-                            }`}>
-                              {prayer.time}
-                            </span>
-                          </div>
-                        ))}
+                            {date.getDate()}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
+
+                {/* Prayer Times Card */}
+                <div className={`p-6 rounded-2xl shadow-xl backdrop-blur-md ${isDarkMode ? 'bg-gray-800 bg-opacity-75' : 'bg-white bg-opacity-75'
+                  }`}>
+
+                  {selectedLocation && (
+                    <>
+                      {/* Location and Schedule Label Row */}
+                      <div className={`px-3 py-2 mb-4 flex flex-row items-center justify-between rounded-lg transition-colors ${isDarkMode
+                        ? 'border-b border-gray-700/50 text-gray-100'
+                        : 'border-b border-gray-200/50 text-gray-800'
+                        } backdrop-blur-sm`}>
+                        <button
+                          onClick={() => {
+                            setSettingsMode('location-only');
+                            setIsSettingsOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 group cursor-pointer"
+                          title="Ubah lokasi"
+                        >
+                          <span className={`font-medium group-hover:underline ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                            }`}>
+                            {selectedLocation.name}
+                          </span>
+                          <MapPin className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                        </button>
+                        {/* Friday Badge on Fridays, otherwise show schedule labels */}
+                        {currentTime.getDay() === 5 ? (
+                          <button
+                            onClick={() => setIsSunnahJumatOpen(true)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 ${
+                              isDarkMode 
+                                ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 border border-orange-500/30' 
+                                : 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-500/20'
+                            }`}
+                            title="Lihat 7 Sunnah Jumat"
+                          >
+                            <span className="text-base">✨</span>
+                            <span>Sunnah Jumat</span>
+                          </button>
+                        ) : (
+                          <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {(() => {
+                              const today = new Date();
+                              const isToday = selectedDate.toDateString() === today.toDateString();
+                              
+                              if (!isToday) {
+                                return 'Jadwal Tanggal Ini';
+                              }
+                              
+                              // Check if next prayer is tomorrow's Subuh (all today's prayers passed)
+                              const nextPrayer = prayerTimes.find(p => p.isNext);
+                              const hasNextPrayerToday = nextPrayer && prayerTimes.some(p => 
+                                p.isNext && p.timeInMinutes > (today.getHours() * 60 + today.getMinutes())
+                              );
+                              
+                              return hasNextPrayerToday ? 'Jadwal Hari Ini' : 'Jadwal Besok';
+                            })()}
+                          </span>
+                        )}
+                      </div>
+
+                      {prayerTimesLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
+                          <p className={isDarkMode ? 'text-gray-200' : 'text-gray-600'}>
+                            Memuat jadwal shalat...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-0">
+                          {prayerTimes
+                            .filter(prayer => {
+                              // Always show main prayers
+                              if (prayer.name !== 'Terbit' && prayer.name !== 'Dhuha') return true;
+                              // Show Terbit and Dhuha based on settings
+                              if (prayer.name === 'Terbit') return settings.showTerbit;
+                              if (prayer.name === 'Dhuha') return settings.showDhuha;
+                              return true;
+                            })
+                            .map((prayer) => (
+                              <div
+                                key={prayer.name}
+                                className={`p-3 flex flex-row items-center justify-between rounded-lg transition-colors ${prayer.isNext
+                                  ? `${themeColors.bg} text-white`
+                                  : isDarkMode
+                                    ? 'border-b border-gray-700/50 text-gray-100'
+                                    : 'border-b border-gray-200/50 text-gray-800'
+                                  } backdrop-blur-sm`}
+                              >
+                                <div className="flex items-center">
+                                  <span className={`font-medium ${prayer.isNext
+                                    ? 'text-white'
+                                    : isDarkMode
+                                      ? 'text-gray-100'
+                                      : 'text-gray-800'
+                                    }`}>
+                                    {prayer.name}
+                                  </span>
+                                </div>
+                                <span className={`font-semibold ${prayer.isNext
+                                  ? 'text-white'
+                                  : isDarkMode
+                                    ? 'text-gray-200'
+                                    : themeColors.text
+                                  }`}>
+                                  {prayer.time}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
-      </div>
-      
+      </div >
+
       {/* Settings Modal */}
-      <SettingsModal
+      < SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSave={handleSaveSettings}
-        locations={locations.map(loc => ({
-          id: loc.id,
-          name: loc.name,
-          lokasi: loc.name,
-          koordinat: {
-            lat: '0',
-            lon: '0'
-          }
-        }))}
+        locations={
+          locations.map(loc => ({
+            id: loc.id,
+            name: loc.name,
+            lokasi: loc.name,
+            koordinat: {
+              lat: '0',
+              lon: '0'
+            }
+          }))
+        }
         selectedLocationId={selectedLocation?.id || null}
         onLocationChange={handleLocationChange}
         isDarkMode={isDarkMode}
+        mode={settingsMode}
+        isDesktopLayout={isDesktopLayout}
       />
 
-      {/* Photo Credit - Only show for Unsplash images */}
-      {currentImage?.author && settings.background.type === 'auto' && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20">
-          <span>Photo by </span>
-          <a 
-            href={currentImage.authorUrl || `https://unsplash.com/@${currentImage.authorUsername}?utm_source=JamShalatApp&utm_medium=referral`}
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-300 hover:text-blue-100 mx-1"
-          >
-            {currentImage.author}
-          </a>
-          <span> on </span>
-          <a 
-            href="https://unsplash.com?utm_source=JamShalatApp&utm_medium=referral" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-300 hover:text-blue-100 ml-1"
-          >
-            Unsplash
-          </a>
-        </div>
+      {/* Sunnah Jumat Dialog */}
+      <SunnahJumatDialog
+        isOpen={isSunnahJumatOpen}
+        onClose={() => setIsSunnahJumatOpen(false)}
+      />
+
+      {/* Custom Date Picker Modal */}
+      {
+        showDatePicker && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`p-6 rounded-2xl shadow-xl max-w-sm w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+              <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                }`}>
+                Pilih Tanggal
+              </h3>
+
+              <input
+                type="date"
+                value={selectedDate.toISOString().split('T')[0]}
+                onChange={(e) => {
+                  const newDate = new Date(e.target.value);
+                  handleDateSelect(newDate);
+                  setShowDatePicker(false);
+                }}
+                className={`w-full p-3 rounded-lg border ${isDarkMode
+                  ? 'bg-gray-700 border-gray-600 text-gray-200'
+                  : 'bg-white border-gray-300 text-gray-800'
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+              />
+
+              <div className="flex space-x-3 mt-4">
+                <button
+                  onClick={() => setShowDatePicker(false)}
+                  className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${isDarkMode
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Photo Credit - Only show for Unsplash images and mobile layout */}
+      {
+        !isDesktopLayout && currentImage?.author && settings.background.type === 'auto' && (
+          <div className={`fixed ${isAndroid() ? 'bottom-6' : 'bottom-0'} left-0 right-0 bg-black bg-opacity-80 text-white text-xs p-2 flex justify-center items-center z-20`}>
+            <span>Photo by </span>
+            <a
+              href={currentImage.authorUrl || `https://unsplash.com/@${currentImage.authorUsername}?utm_source=JamShalatApp&utm_medium=referral`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-blue-100 mx-1"
+            >
+              {currentImage.author}
+            </a>
+            <span> on </span>
+            <a
+              href="https://unsplash.com?utm_source=JamShalatApp&utm_medium=referral"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-blue-100 ml-1"
+            >
+              Unsplash
+            </a>
+          </div>
+        )
+      }
+
+      {/* Countdown Overlay - renders on top of everything */}
+      {settings.audio.enabled && countdownState.phase !== 'idle' && (
+        <CountdownOverlay
+          phase={countdownState.phase}
+          prayerName={countdownState.prayerName}
+          secondsRemaining={countdownState.secondsRemaining}
+          totalSeconds={countdownState.totalSeconds}
+          progress={countdownState.progress}
+          isDesktop={isDesktopLayout}
+        />
       )}
+
+      {/* Notification Debug Panel - only visible on mobile */}
+      <NotificationDebugPanel />
     </>
   );
 }
