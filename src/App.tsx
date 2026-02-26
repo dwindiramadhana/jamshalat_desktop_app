@@ -9,6 +9,7 @@ import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { MapPin } from 'lucide-react';
 import DesktopMasjidView4 from './components/DesktopMasjidView_4';
 import CountdownOverlay from './components/CountdownOverlay';
+import { NotificationDebugPanel } from './components/NotificationDebugPanel';
 import { usePrayerCountdown } from './hooks/usePrayerCountdown';
 import { useSlideRotation } from './hooks/useSlideRotation';
 import { useNotifications } from './hooks/useNotifications';
@@ -1106,6 +1107,9 @@ function App() {
           isDesktop={isDesktopLayout}
         />
       )}
+
+      {/* Notification Debug Panel - only visible on mobile */}
+      <NotificationDebugPanel />
     </>
   );
 }

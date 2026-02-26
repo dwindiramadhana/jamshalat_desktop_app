@@ -27,8 +27,9 @@ class MobileNotificationService {
           id: 'prayer_times',
           name: 'Prayer Times',
           description: 'Notifications for prayer times and countdowns',
-          importance: 5,
+          importance: 5, // MAX importance
           visibility: 1,
+          sound: 'default',
         });
         console.log('[Mobile Notifications] Created prayer_times channel');
 
@@ -36,8 +37,9 @@ class MobileNotificationService {
           id: 'countdown',
           name: 'Prayer Countdown',
           description: 'Ongoing countdown to next prayer',
-          importance: 3,
+          importance: 4, // HIGH importance for ongoing notifications
           visibility: 1,
+          sound: undefined,
         });
         console.log('[Mobile Notifications] Created countdown channel');
       }
