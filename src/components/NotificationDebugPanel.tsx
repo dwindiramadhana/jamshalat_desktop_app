@@ -10,6 +10,7 @@ export function NotificationDebugPanel() {
     channelsCreated: false,
     lastUpdate: '',
   });
+  const [testResult, setTestResult] = useState('');
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -46,6 +47,41 @@ export function NotificationDebugPanel() {
     return () => clearInterval(interval);
   }, []);
 
+  const testNotification = async () => {
+    try {
+      setTestResult('Sending...');
+      
+      // Test 1: Simple popup notification
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: 888,
+          title: 'Test Notification',
+          body: 'If you see this, notifications work!',
+          channelId: 'prayer_times',
+        }]
+      });
+      
+      setTestResult('✓ Sent popup');
+      
+      // Test 2: Ongoing persistent notification
+      setTimeout(async () => {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: 999,
+            title: '🕌 Test Persistent',
+            body: 'This should stay in notification area',
+            channelId: 'countdown',
+            ongoing: true,
+            autoCancel: false,
+          }]
+        });
+        setTestResult('✓ Sent persistent');
+      }, 2000);
+    } catch (error) {
+      setTestResult(`✗ Error: ${error}`);
+    }
+  };
+
   // Only show on mobile
   if (!Capacitor.isNativePlatform()) {
     return null;
@@ -76,6 +112,22 @@ export function NotificationDebugPanel() {
             {debugInfo.channelsCreated ? '✓ Created' : '✗ Not created'}
           </span>
         </div>
+        
+        {/* Test Button */}
+        <div className="mt-3 pt-2 border-t border-gray-700">
+          <button
+            onClick={testNotification}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
+          >
+            Test Notifications
+          </button>
+          {testResult && (
+            <div className="mt-2 text-center text-yellow-300">
+              {testResult}
+            </div>
+          )}
+        </div>
+        
         <div className="text-center text-gray-400 mt-2">
           Updated: {debugInfo.lastUpdate}
         </div>
