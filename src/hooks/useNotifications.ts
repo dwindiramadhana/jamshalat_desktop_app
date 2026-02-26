@@ -40,6 +40,18 @@ export function useNotifications({ countdownState, enabled }: UseNotificationsPr
         mobileNotificationService.sendPrayerNotification(prayerName, true);
       } else if (phase === 'iqamah') {
         mobileNotificationService.sendPrayerNotification(prayerName, false);
+      } else if (phase === 'adzan_countdown') {
+        // Show persistent notification immediately when countdown starts
+        const timeStr = secondsRemaining >= 60 
+          ? `${minutesRemaining} menit`
+          : `${secondsRemaining} detik`;
+        mobileNotificationService.updateCountdownNotification(prayerName, timeStr);
+      } else if (phase === 'iqamah_countdown') {
+        // Show persistent notification immediately when iqamah countdown starts
+        const timeStr = secondsRemaining >= 60 
+          ? `${minutesRemaining} menit`
+          : `${secondsRemaining} detik`;
+        mobileNotificationService.updateCountdownNotification(`Iqamah ${prayerName}`, timeStr);
       }
     }
 
